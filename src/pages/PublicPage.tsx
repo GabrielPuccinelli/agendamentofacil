@@ -74,7 +74,7 @@ export default function PublicPage() {
         // Verificamos se o 'join' falhou (ex: RLS em falta)
         if (!org) { 
           console.error("Erro: O 'join' com a organização falhou. O objeto 'organizations' é nulo.");
-          throw new Error("A organização deste profissional não foi encontrada. (Verifique o RLS da 'organizations')");
+          throw new Error("A organização deste profissional não foi encontrada ou está indisponível.");
         }
         // --- FIM DA CORREÇÃO ---
 
