@@ -38,7 +38,7 @@ export default function OrganizationPage() {
           .eq('slug', slug)
           .single();
 
-        if (orgError) throw new Error('Empresa não encontrada. (Verifique o slug e o RLS de "organizations")');
+        if (orgError) throw new Error('Empresa não encontrada ou indisponível. Verifique o link ou tente novamente mais tarde.');
         setOrganization(orgData);
 
         // 2. Busca todos os membros (profissionais) dessa empresa
