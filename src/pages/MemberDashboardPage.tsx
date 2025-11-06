@@ -75,6 +75,22 @@ export default function MemberDashboardPage() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <h1 className="text-2xl text-red-600 mb-4">{error}</h1>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          >
+            Voltar ao seu Dashboard
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-8">
@@ -87,20 +103,18 @@ export default function MemberDashboardPage() {
         </button>
       </div>
 
-      {organizationId && (
-        <AgendaCalendar organizationId={organizationId} />
+      {organizationId && memberId && (
+        <AgendaCalendar organizationId={organizationId} memberId={memberId} />
       )}
 
       <hr className="my-10 border-t-2" />
 
-      {memberId && (
-        <ManageAvailability memberId={memberId} />
-      )}
+      <ManageAvailability memberId={memberId!} />
 
       <hr className="my-10" />
 
-      {isAdmin && organizationId && (
-        <ManageServices organizationId={organizationId} />
+      {organizationId && (
+        <ManageServices organizationId={organizationId} memberId={memberId} />
       )}
 
     </div>
