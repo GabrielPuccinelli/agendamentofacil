@@ -1,7 +1,7 @@
 // src/components/ManageMembers.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 // Define o "formato" de um membro
 type Member = {
@@ -9,7 +9,8 @@ type Member = {
   name: string;
   slug: string;
   role: string;
-  user_id: string | null; // user_id pode ser nulo se o funcionário não tiver login
+  user_id: string | null;
+  can_edit_profile: boolean;
 };
 
 type Props = {
@@ -22,6 +23,7 @@ export default function ManageMembers({ organizationId }: Props) {
   const [slug, setSlug] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   // READ (Ler membros da organização)
   useEffect(() => {
@@ -82,6 +84,8 @@ export default function ManageMembers({ organizationId }: Props) {
       setMembers([...members, data]);
       setName('');
       setSlug('');
+      // Redireciona para o dashboard do novo membro
+      navigate(`/member/${data.id}/dashboard`);
     }
   };
 
@@ -98,6 +102,21 @@ export default function ManageMembers({ organizationId }: Props) {
       setError('Não foi possível remover o membro.');
     } else {
       setMembers(members.filter((m) => m.id !== memberId));
+    }
+  };
+
+  const handleTogglePermission = async (memberId: string, currentStatus: boolean) => {
+    const { error } = await supabase
+      .from('members')
+      .update({ can_edit_profile: !currentStatus })
+      .eq('id', memberId);
+
+    if (error) {
+      setError('Erro ao atualizar permissão.');
+    } else {
+      setMembers(members.map(m =>
+        m.id === memberId ? { ...m, can_edit_profile: !currentStatus } : m
+      ));
     }
   };
 
@@ -153,6 +172,18 @@ export default function ManageMembers({ organizationId }: Props) {
             </Link>
             {member.role !== 'admin' ? (
               <div className="flex items-center">
+                <div className="flex items-center mr-4">
+                  <input
+                    type="checkbox"
+                    id={`edit-permission-${member.id}`}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    checked={member.can_edit_profile}
+                    onChange={() => handleTogglePermission(member.id, member.can_edit_profile)}
+                  />
+                  <label htmlFor={`edit-permission-${member.id}`} className="ml-2 text-sm text-gray-600">
+                    Pode Editar
+                  </label>
+                </div>
                 <Link to={`/member/${member.id}/dashboard`} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 mr-2 text-sm">
                   Gerenciar
                 </Link>

@@ -14,6 +14,7 @@ export default function DashboardPage() {
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null); 
   const [isAdmin, setIsAdmin] = useState(false);
+  const [canEditProfile, setCanEditProfile] = useState(false);
 
   useEffect(() => {
     // --- ESTA É A CORREÇÃO PRINCIPAL ---
@@ -33,17 +34,17 @@ export default function DashboardPage() {
       try {
         const { data: member, error: memberError } = await supabase
           .from('members')
-          .select('id, name, role, organization_id')
+          .select('id, name, role, organization_id, can_edit_profile')
           .eq('user_id', user.id)
-          .maybeSingle();
+          .single();
 
         if (memberError) throw memberError;
 
         if (member) {
-          // O usuário está logado E FEZ onboarding
           setUserName(member.name);
           setOrganizationId(member.organization_id);
           setMemberId(member.id);
+          setCanEditProfile(member.can_edit_profile);
           if (member.role === 'admin') {
             setIsAdmin(true);
           }
@@ -92,8 +93,8 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {organizationId && (
-        <AgendaCalendar organizationId={organizationId} />
+      {organizationId && memberId && (
+        <AgendaCalendar organizationId={organizationId} memberId={memberId} />
       )}
       
       <hr className="my-10 border-t-2" /> 
@@ -105,14 +106,13 @@ export default function DashboardPage() {
         </>
       )}
 
-      {memberId && (
-        <ManageAvailability memberId={memberId} />
-      )}
-
-      <hr className="my-10" /> 
-
-      {isAdmin && organizationId && (
-        <ManageServices organizationId={organizationId} />
+      {/* Admins or staff with permission can manage their profile */}
+      {(isAdmin || canEditProfile) && memberId && (
+        <>
+          <ManageAvailability memberId={memberId} />
+          <hr className="my-10" />
+          <ManageServices organizationId={organizationId!} memberId={memberId} />
+        </>
       )}
       
     </div>

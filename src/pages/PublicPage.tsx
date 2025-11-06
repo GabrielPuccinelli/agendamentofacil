@@ -285,7 +285,13 @@ export default function PublicPage() {
                 onSelect={setSelectedDate}
                 locale={ptBR}
                 fromDate={new Date()}
-                disabled={day => !availability.some(a => a.day_of_week === day.getDay())}
+                defaultMonth={new Date()}
+                modifiers={{
+                  available: day => availability.some(a => a.day_of_week === day.getDay())
+                }}
+                modifiersClassNames={{
+                  available: 'available-day'
+                }}
                 className="border rounded-lg p-2"
               />
             </div>
