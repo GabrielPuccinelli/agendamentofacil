@@ -69,7 +69,7 @@ export default function AgendaCalendar({ organizationId, memberId }: Props) {
     };
 
     fetchAppointments();
-  }, [organizationId]);
+  }, [organizationId, memberId]);
 
   // 4. Nova Função: O que fazer ao clicar em uma data
   const handleDateClick = (arg: DateClickArg) => {

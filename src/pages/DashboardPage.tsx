@@ -92,8 +92,8 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {organizationId && (
-        <AgendaCalendar organizationId={organizationId} />
+      {organizationId && memberId && (
+        <AgendaCalendar organizationId={organizationId} memberId={memberId} />
       )}
       
       <hr className="my-10 border-t-2" /> 

@@ -1,7 +1,7 @@
 // src/components/ManageMembers.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 // Define o "formato" de um membro
 type Member = {
@@ -22,6 +22,7 @@ export default function ManageMembers({ organizationId }: Props) {
   const [slug, setSlug] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   // READ (Ler membros da organização)
   useEffect(() => {
@@ -82,6 +83,8 @@ export default function ManageMembers({ organizationId }: Props) {
       setMembers([...members, data]);
       setName('');
       setSlug('');
+      // Redireciona para o dashboard do novo membro
+      navigate(`/member/${data.id}/dashboard`);
     }
   };
 
