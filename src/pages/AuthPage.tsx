@@ -38,15 +38,19 @@ export default function AuthPage() {
           providers={['google']}
           localization={{
             variables: {
-              sign_in: { 
-                email_label: 'Seu email', 
-                password_label: 'Sua senha', 
-                button_label: 'Entrar' 
+              sign_in: {
+                email_label: 'Seu email',
+                password_label: 'Sua senha',
+                button_label: 'Entrar',
+                email_input_placeholder: 'seu-email@exemplo.com',
+                password_input_placeholder: 'Sua senha',
               },
-              sign_up: { 
-                email_label: 'Seu email', 
-                password_label: 'Crie uma senha', 
-                button_label: 'Cadastrar' 
+              sign_up: {
+                email_label: 'Seu email',
+                password_label: 'Crie uma senha',
+                button_label: 'Cadastrar',
+                email_input_placeholder: 'seu-email@exemplo.com',
+                password_input_placeholder: 'Crie uma senha forte',
               },
               forgotten_password: {
                 link_text: 'Esqueceu sua senha?',
