@@ -14,56 +14,46 @@ export default function DashboardPage() {
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null); 
   const [isAdmin, setIsAdmin] = useState(false);
+  const [canEditProfile, setCanEditProfile] = useState(false); // Novo estado
 
   useEffect(() => {
-    // --- ESTA É A CORREÇÃO PRINCIPAL ---
-    // Usamos onAuthStateChange, que é a "fonte da verdade"
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       
       if (!session) {
-        // Se a sessão for nula (ou o token for inválido e limpo),
-        // envia para o login.
         navigate('/');
         return;
       }
 
-      // Se a sessão EXISTE, agora verificamos o onboarding
       const user = session.user;
       
       try {
         const { data: member, error: memberError } = await supabase
           .from('members')
-          .select('id, name, role, organization_id')
+          .select('id, name, role, organization_id, can_edit_profile') // Puxa a nova permissão
           .eq('user_id', user.id)
           .maybeSingle();
 
         if (memberError) throw memberError;
 
         if (member) {
-          // O usuário está logado E FEZ onboarding
           setUserName(member.name);
           setOrganizationId(member.organization_id);
           setMemberId(member.id);
-          if (member.role === 'admin') {
-            setIsAdmin(true);
-          }
+          setIsAdmin(member.role === 'admin');
+          setCanEditProfile(member.can_edit_profile); // Armazena a permissão
           setLoading(false);
         } else {
-          // O usuário está logado MAS NÃO FEZ onboarding
           navigate('/onboarding');
         }
       } catch (err: any) {
         console.error("Erro no 'gatekeeper' do dashboard:", err);
-        // Se der erro (ex: RLS), manda para o login por segurança
         navigate('/');
       }
     });
 
-    // Limpa o listener ao sair da página
     return () => {
       subscription.unsubscribe();
     };
-    // Array vazio para rodar APENAS UMA VEZ
   }, [navigate]); 
 
   const handleLogout = async () => {
@@ -79,7 +69,6 @@ export default function DashboardPage() {
     );
   }
 
-  // O resto do return (renderização) permanece o mesmo
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-8">
@@ -101,20 +90,20 @@ export default function DashboardPage() {
       {isAdmin && organizationId && (
         <>
           <ManageMembers organizationId={organizationId} />
-          <hr className="my-10" /> 
+          <hr className="my-10" />
         </>
       )}
 
-      {memberId && (
-        <ManageAvailability memberId={memberId} />
+      {(isAdmin || canEditProfile) && memberId && (
+        <>
+          <ManageAvailability memberId={memberId} />
+          <hr className="my-10" />
+          <ManageServices
+            memberId={memberId}
+            organizationId={isAdmin && organizationId ? organizationId : undefined}
+          />
+        </>
       )}
-
-      <hr className="my-10" /> 
-
-      {isAdmin && organizationId && (
-        <ManageServices organizationId={organizationId} />
-      )}
-      
     </div>
   );
 }

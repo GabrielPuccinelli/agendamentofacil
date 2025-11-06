@@ -11,13 +11,8 @@ import { format, addMinutes, setHours, setMinutes } from 'date-fns';
 
 // --- Tipos de Dados ---
 type Organization = { id: string; name: string; };
-type Service = { id: string; name: string; duration_minutes: number; price: number; };
+type Service = { id: string; name: string; duration: number; price: number; };
 type Availability = { day_of_week: number; start_time: string; end_time: string; };
-
-// --- Helpers de Data/Hora ---
-const daysOfWeek = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
-const formatTime = (time: string) => time.substring(0, 5).replace(':', 'h');
-
 
 export default function PublicPage() {
   const { slug } = useParams<{ slug: string }>();
@@ -67,28 +62,28 @@ export default function PublicPage() {
         if (memberError) throw new Error('Profissional não encontrado. (Verifique o slug)');
         if (!memberData) throw new Error('Profissional não encontrado.');
 
-        // --- A CORREÇÃO (É UM OBJETO, NÃO UM ARRAY) ---
-        // O Supabase retorna 'organizations' como um OBJETO (ou null se o join falhar)
         const org = memberData.organizations as unknown as { name: string } | null;
         
-        // Verificamos se o 'join' falhou (ex: RLS em falta)
         if (!org) { 
           console.error("Erro: O 'join' com a organização falhou. O objeto 'organizations' é nulo.");
           throw new Error("A organização deste profissional não foi encontrada. (Verifique o RLS da 'organizations')");
         }
-        // --- FIM DA CORREÇÃO ---
 
-        // Agora 'org.name' é seguro de aceder
         setOrganization({ id: memberData.organization_id, name: org.name });
         setMemberId(memberData.id);
         setMemberName(memberData.name);
 
         const { data: servicesData, error: servicesError } = await supabase
-          .from('services')
-          .select('id, name, duration_minutes, price')
-          .eq('organization_id', memberData.organization_id);
-        if (servicesError) throw new Error('Erro ao buscar serviços.');
-        setServices(servicesData || []);
+          .from("member_services")
+          .select("*, services(*)")
+          .eq("member_id", memberData.id);
+
+        if (servicesError) throw new Error("Erro ao buscar os serviços do profissional.");
+
+        const professionalServices = servicesData
+          .map(item => item.services)
+          .filter(Boolean) as Service[];
+        setServices(professionalServices);
 
         const { data: availabilityData, error: availabilityError } = await supabase
           .from('availability')
@@ -108,14 +103,12 @@ export default function PublicPage() {
 
 
   // --- 2. Efeito para Calcular Horários Livres ---
-  // (Este bloco permanece igual)
   useEffect(() => {
     if (!selectedService || !selectedDate || !memberId) {
       setAvailableSlots([]);
       return;
     }
     const calculateSlots = async () => {
-      // (a lógica interna está correta)
       const dayOfWeek = selectedDate.getDay();
       const dateStr = format(selectedDate, 'yyyy-MM-dd');
       const workHours = availability.find(a => a.day_of_week === dayOfWeek);
@@ -124,18 +117,19 @@ export default function PublicPage() {
         return;
       }
       const { data: existingAppointments, error: appointmentsError } = await supabase
-        .from('appointments')
-        .select('start_at, end_at')
+        .from('bookings')
+        .select('start_time, end_time')
         .eq('member_id', memberId)
-        .gte('start_at', `${dateStr}T00:00:00`)
-        .lte('end_at', `${dateStr}T23:59:59`);
+        .gte('start_time', `${dateStr}T00:00:00Z`)
+        .lte('end_time', `${dateStr}T23:59:59Z`);
+
       if (appointmentsError) {
         setAvailableSlots([]);
         return;
       }
       const slots: string[] = [];
       const { start_time, end_time } = workHours;
-      const duration = selectedService.duration_minutes;
+      const duration = selectedService.duration;
       let [startH, startM] = start_time.split(':').map(Number);
       let currentSlotTime = setMinutes(setHours(selectedDate, startH), startM);
       let [endH, endM] = end_time.split(':').map(Number);
@@ -144,8 +138,8 @@ export default function PublicPage() {
         const slotEnd = addMinutes(currentSlotTime, duration);
         if (slotEnd > endTime) break;
         const isOccupied = existingAppointments?.some(appt => {
-          const apptStart = new Date(appt.start_at);
-          const apptEnd = new Date(appt.end_at);
+          const apptStart = new Date(appt.start_time);
+          const apptEnd = new Date(appt.end_time);
           return (currentSlotTime < apptEnd && slotEnd > apptStart);
         });
         if (!isOccupied) {
@@ -160,10 +154,9 @@ export default function PublicPage() {
   
 
   // --- 3. Função para Salvar o Agendamento (CREATE) ---
-  // (Este bloco permanece igual)
   const handleBookAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedService || !selectedDate || !selectedSlot || !memberId || !organization) {
+    if (!selectedService || !selectedDate || !selectedSlot || !memberId) {
       setError('Por favor, complete todos os campos.');
       return;
     }
@@ -172,19 +165,16 @@ export default function PublicPage() {
     try {
       const [startH, startM] = selectedSlot.split(':').map(Number);
       const startAt = setMinutes(setHours(selectedDate, startH), startM);
-      const endAt = addMinutes(startAt, selectedService.duration_minutes);
+      const endAt = addMinutes(startAt, selectedService.duration);
       const { error: insertError } = await supabase
-        .from('appointments')
+        .from('bookings')
         .insert({
-          organization_id: organization.id,
           member_id: memberId,
           service_id: selectedService.id,
           client_name: clientName,
           client_phone: clientPhone,
-          start_at: startAt.toISOString(),
-          end_at: endAt.toISOString(),
-          status: 'confirmed',
-          payment_status: 'pending',
+          start_time: startAt.toISOString(),
+          end_time: endAt.toISOString(),
         });
       if (insertError) throw insertError;
       setBookingSuccess(true);
@@ -212,7 +202,6 @@ export default function PublicPage() {
      return <div className="flex justify-center items-center min-h-screen"><h1 className="text-2xl text-gray-500">Página não encontrada.</h1></div>;
   }
 
-  // Página de Sucesso
   if (bookingSuccess) {
     return (
       <div className="max-w-md mx-auto p-8 text-center">
@@ -235,7 +224,6 @@ export default function PublicPage() {
     );
   }
 
-  // Página Principal de Agendamento
   return (
     <div className="max-w-2xl mx-auto p-4 md:p-8">
       <div className="text-center mb-8">
@@ -245,7 +233,6 @@ export default function PublicPage() {
         </p>
       </div>
 
-      {/* --- ETAPA 1: Selecionar Serviço --- */}
       <div className="mb-6">
         <h2 className="text-2xl font-semibold mb-4">1. Escolha o Serviço</h2>
         <div className="space-y-3">
@@ -259,13 +246,12 @@ export default function PublicPage() {
                 <span className="font-bold">{service.name}</span>
                 <span className="font-semibold">R$ {service.price.toFixed(2)}</span>
               </div>
-              <p className="text-sm text-gray-500">{service.duration_minutes} minutos</p>
+              <p className="text-sm text-gray-500">{service.duration} minutos</p>
             </button>
           ))}
         </div>
       </div>
 
-      {/* --- ETAPA 2: Selecionar Data e Hora --- */}
       {selectedService && (
         <div className="mb-6">
           <h2 className="text-2xl font-semibold mb-4">2. Escolha a Data e Horário</h2>
@@ -304,7 +290,6 @@ export default function PublicPage() {
         </div>
       )}
 
-      {/* --- ETAPA 3: Confirmar Dados --- */}
       {selectedSlot && (
         <div>
           <h2 className="text-2xl font-semibold mb-4">3. Seus Dados</h2>
