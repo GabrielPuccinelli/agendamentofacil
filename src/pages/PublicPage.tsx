@@ -83,12 +83,20 @@ export default function PublicPage() {
         setMemberId(memberData.id);
         setMemberName(memberData.name);
 
+        // --- CORREÇÃO: Busca serviços através da tabela de junção ---
         const { data: servicesData, error: servicesError } = await supabase
-          .from('services')
-          .select('id, name, duration_minutes, price')
-          .eq('organization_id', memberData.organization_id);
-        if (servicesError) throw new Error('Erro ao buscar serviços.');
-        setServices(servicesData || []);
+          .from('member_services')
+          .select(`
+            services (id, name, duration_minutes, price)
+          `)
+          .eq('member_id', memberData.id);
+
+        if (servicesError) throw new Error('Erro ao buscar os serviços do profissional.');
+
+        // O resultado é um array de { services: { ... } }, então precisamos mapeá-lo
+        const professionalServices = servicesData.map(item => item.services);
+        setServices(professionalServices || []);
+        // --- FIM DA CORREÇÃO ---
 
         const { data: availabilityData, error: availabilityError } = await supabase
           .from('availability')

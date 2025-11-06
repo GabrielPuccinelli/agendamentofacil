@@ -19,9 +19,10 @@ type CalendarEvent = {
 
 type Props = {
   organizationId: string;
+  memberId?: string; // memberId is optional
 };
 
-export default function AgendaCalendar({ organizationId }: Props) {
+export default function AgendaCalendar({ organizationId, memberId }: Props) {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -34,7 +35,7 @@ export default function AgendaCalendar({ organizationId }: Props) {
     const fetchAppointments = async () => {
       setLoading(true);
       
-      const { data, error } = await supabase
+      let query = supabase
         .from('appointments')
         .select(`
           id,
@@ -44,6 +45,12 @@ export default function AgendaCalendar({ organizationId }: Props) {
           services ( name )
         `)
         .eq('organization_id', organizationId);
+
+      if (memberId) {
+        query = query.eq('member_id', memberId);
+      }
+
+      const { data, error } = await query;
 
       if (error) {
         console.error('Erro ao buscar agendamentos:', error);
