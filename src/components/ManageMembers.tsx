@@ -1,6 +1,7 @@
 // src/components/ManageMembers.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { Link } from "react-router-dom";
 
 // Define o "formato" de um membro
 type Member = {
@@ -8,7 +9,8 @@ type Member = {
   name: string;
   slug: string;
   role: string;
-  user_id: string | null; // user_id pode ser nulo se o funcionário não tiver login
+  user_id: string | null;
+  can_edit_profile: boolean; // Novo campo de permissão
 };
 
 type Props = {
@@ -100,6 +102,26 @@ export default function ManageMembers({ organizationId }: Props) {
     }
   };
 
+  // UPDATE (Atualizar permissão do funcionário)
+  const handleTogglePermission = async (member: Member) => {
+    const updatedStatus = !member.can_edit_profile;
+    const { error } = await supabase
+      .from('members')
+      .update({ can_edit_profile: updatedStatus })
+      .eq('id', member.id);
+
+    if (error) {
+      console.error('Erro ao atualizar permissão:', error);
+      setError('Não foi possível atualizar a permissão.');
+    } else {
+      setMembers(
+        members.map((m) =>
+          m.id === member.id ? { ...m, can_edit_profile: updatedStatus } : m
+        )
+      );
+    }
+  };
+
   if (loading) return <p>Carregando equipe...</p>;
 
   return (
@@ -138,24 +160,44 @@ export default function ManageMembers({ organizationId }: Props) {
         {error && <p className="text-red-600 mt-2">{error}</p>}
       </form>
 
-      {/* Lista de Membros (READ / DELETE) */}
+      {/* Lista de Membros (READ / DELETE / UPDATE) */}
       <div className="mt-6 space-y-3">
         {members.map((member) => (
           <div key={member.id} className="flex justify-between items-center p-3 border rounded-md shadow-sm bg-white">
-            <div>
+            <div className="flex-1">
               <p className="font-semibold">{member.name} ({member.role})</p>
               <p className="text-sm text-gray-600">
                 Link: /<span className="font-medium">{member.slug}</span>
               </p>
-            </div>
-            {/* Não deixa excluir o próprio admin */}
-            {member.role !== 'admin' && (
-              <button
-                onClick={() => handleDeleteMember(member.id)}
-                className="px-3 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200"
+              <Link
+                to={`/member/${member.id}/dashboard`}
+                className="text-sm text-blue-600 hover:underline"
               >
-                Remover
-              </button>
+                Ver Dashboard do Funcionário
+              </Link>
+            </div>
+            {/* Controles para 'staff' */}
+            {member.role === 'staff' && (
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id={`edit-${member.id}`}
+                    checked={member.can_edit_profile}
+                    onChange={() => handleTogglePermission(member)}
+                    className="h-4 w-4 text-blue-600 border-gray-300 rounded"
+                  />
+                  <label htmlFor={`edit-${member.id}`} className="ml-2 text-sm text-gray-700">
+                    Pode Editar
+                  </label>
+                </div>
+                <button
+                  onClick={() => handleDeleteMember(member.id)}
+                  className="px-3 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200"
+                >
+                  Remover
+                </button>
+              </div>
             )}
           </div>
         ))}
