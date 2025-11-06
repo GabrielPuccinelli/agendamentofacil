@@ -1,6 +1,7 @@
 // src/components/ManageMembers.tsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { Link } from 'react-router-dom';
 
 // Define o "formato" de um membro
 type Member = {
@@ -141,21 +142,29 @@ export default function ManageMembers({ organizationId }: Props) {
       {/* Lista de Membros (READ / DELETE) */}
       <div className="mt-6 space-y-3">
         {members.map((member) => (
-          <div key={member.id} className="flex justify-between items-center p-3 border rounded-md shadow-sm bg-white">
-            <div>
-              <p className="font-semibold">{member.name} ({member.role})</p>
-              <p className="text-sm text-gray-600">
-                Link: /<span className="font-medium">{member.slug}</span>
-              </p>
-            </div>
-            {/* Não deixa excluir o próprio admin */}
-            {member.role !== 'admin' && (
-              <button
-                onClick={() => handleDeleteMember(member.id)}
-                className="px-3 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200"
-              >
-                Remover
-              </button>
+          <div key={member.id} className="flex justify-between items-center p-3 border rounded-md shadow-sm bg-white transition-all hover:shadow-lg">
+            <Link to={`/member/${member.id}/dashboard`} className="flex-grow">
+              <div>
+                <p className="font-semibold">{member.name} ({member.role})</p>
+                <p className="text-sm text-gray-600">
+                  Link Público: /p/{member.slug}
+                </p>
+              </div>
+            </Link>
+            {member.role !== 'admin' ? (
+              <div className="flex items-center">
+                <Link to={`/member/${member.id}/dashboard`} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 mr-2 text-sm">
+                  Gerenciar
+                </Link>
+                <button
+                  onClick={() => handleDeleteMember(member.id)}
+                  className="px-3 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200 text-sm"
+                >
+                  Remover
+                </button>
+              </div>
+            ) : (
+              <span className="text-sm text-gray-500 font-medium">(Você)</span>
             )}
           </div>
         ))}
