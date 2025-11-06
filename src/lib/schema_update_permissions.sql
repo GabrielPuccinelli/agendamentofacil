@@ -1,18 +1,15 @@
--- Adiciona a nova coluna 'can_edit_profile' à tabela 'members'
-ALTER TABLE public.members
-ADD COLUMN can_edit_profile BOOLEAN DEFAULT FALSE;
+-- Add can_edit_profile column to members table
+ALTER TABLE members
+ADD
+  COLUMN can_edit_profile BOOLEAN DEFAULT FALSE;
 
--- Garante que a política de segurança para a tabela 'members'
--- permita que os admins atualizem esta nova coluna.
--- (Este script assume que você já tem uma política de UPDATE para admins.
---  Se não tiver, ele precisará ser ajustado.)
+-- Clear existing policies before recreating them
+DROP POLICY IF EXISTS "Allow staff to update their own profile" ON members;
 
--- Primeiro, removemos a política de UPDATE existente para recriá-la
-DROP POLICY IF EXISTS "Allow admins to update members" ON public.members;
-
--- Recriamos a política, agora incluindo a nova coluna na verificação
-CREATE POLICY "Allow admins to update members"
-ON public.members
-FOR UPDATE
-USING ( get_my_role() = 'admin' )
-WITH CHECK ( get_my_role() = 'admin' );
+-- Add new policy to allow staff to update their can_edit_profile status if they have permission
+CREATE POLICY "Allow staff to update their own profile" ON members FOR UPDATE USING (
+  user_id = auth.uid ()
+  AND can_edit_profile = TRUE
+)
+WITH
+  CHECK (user_id = auth.uid ());

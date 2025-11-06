@@ -1,14 +1,13 @@
-// src/components/AgendaCalendar.tsx
-import { useState, useEffect, useRef } from 'react'; // <-- 1. Importar o 'useRef'
-import { supabase } from '../lib/supabaseClient';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import listPlugin from '@fullcalendar/list';
-import interactionPlugin from '@fullcalendar/interaction'; // Importa o plugin (código)
-import { type DateClickArg } from '@fullcalendar/interaction'; // Importa o TIPO
+import { useRef } from "react";
+import { supabase } from "../lib/supabaseClient";
+import FullCalendar from "@fullcalendar/react";
+import dayGridPlugin from "@fullcalendar/daygrid";
+import timeGridPlugin from "@fullcalendar/timegrid";
+import listPlugin from "@fullcalendar/list";
+import interactionPlugin from "@fullcalendar/interaction";
+import { type DateClickArg } from "@fullcalendar/interaction";
+import { useQuery } from "react-query";
 
-// Define o "formato" do evento que o FullCalendar espera
 type CalendarEvent = {
   id: string;
   title: string;
@@ -18,100 +17,106 @@ type CalendarEvent = {
 };
 
 type Props = {
-  organizationId: string;
-  memberId?: string; // memberId is optional
+  organizationId?: string; // Optional: for fetching all bookings
+  memberId?: string;       // Optional: for fetching member-specific bookings
 };
 
+// A component MUST receive either organizationId or memberId
 export default function AgendaCalendar({ organizationId, memberId }: Props) {
-  const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  
-  // 3. Criar uma 'ref' para podermos controlar o calendário
   const calendarRef = useRef<FullCalendar>(null);
 
-  // READ (Ler agendamentos do banco ao carregar)
-  useEffect(() => {
-    const fetchAppointments = async () => {
-      setLoading(true);
-      
-      let query = supabase
-        .from('appointments')
-        .select(`
-          id,
-          start_at,
-          end_at,
-          client_name,
-          services ( name )
-        `)
-        .eq('organization_id', organizationId);
+  const fetchKey = memberId ? ["bookings", memberId] : ["bookings", organizationId];
+
+  const {
+    data: events,
+    isLoading,
+    error,
+  } = useQuery(
+    fetchKey,
+    async () => {
+      if (!organizationId && !memberId) {
+        return []; // Should not happen if component is used correctly
+      }
+
+      let query = supabase.from("bookings").select(`
+        id,
+        start_time,
+        end_time,
+        client_name,
+        services ( name )
+      `);
 
       if (memberId) {
-        query = query.eq('member_id', memberId);
+        query = query.eq("member_id", memberId);
+      } else if (organizationId) {
+        // This requires a bit more work. Find all members of the org first.
+        const { data: members, error: memberError } = await supabase
+          .from("members")
+          .select("id")
+          .eq("organization_id", organizationId);
+
+        if (memberError) throw new Error(memberError.message);
+        const memberIds = members.map(m => m.id);
+        query = query.in("member_id", memberIds);
       }
 
       const { data, error } = await query;
 
       if (error) {
-        console.error('Erro ao buscar agendamentos:', error);
-        setError('Não foi possível carregar a agenda.');
-      } else {
-        const formattedEvents = data.map((appt: any) => ({
-          id: appt.id,
-          title: `${appt.services.name} - ${appt.client_name}`,
-          start: appt.start_at,
-          end: appt.end_at,
-          allDay: false,
-        }));
-        setEvents(formattedEvents);
+        throw new Error(error.message);
       }
-      setLoading(false);
-    };
 
-    fetchAppointments();
-  }, [organizationId, memberId]);
+      const formattedEvents = data.map((appt: any) => ({
+        id: appt.id,
+        title: `${appt.services?.name || "Serviço"} - ${appt.client_name}`,
+        start: appt.start_time,
+        end: appt.end_time,
+        allDay: false,
+      }));
+      return formattedEvents as CalendarEvent[];
+    },
+    {
+      enabled: !!organizationId || !!memberId,
+    }
+  );
 
-  // 4. Nova Função: O que fazer ao clicar em uma data
   const handleDateClick = (arg: DateClickArg) => {
-    // Pega a API do calendário através da 'ref'
     const calendarApi = calendarRef.current?.getApi();
     if (calendarApi) {
-      // Muda a visão para 'timeGridDay' (Visão de Dia)
-      // e foca na data que o usuário clicou (arg.date)
-      calendarApi.changeView('timeGridDay', arg.date);
+      calendarApi.changeView("timeGridDay", arg.date);
     }
   };
 
-  if (loading) return <p>Carregando agenda...</p>;
-  if (error) return <p className="text-red-600">{error}</p>;
+  if (isLoading) return <p>Carregando agenda...</p>;
+  if (error) return <p className="text-red-600">{(error as Error).message}</p>;
 
   return (
     <div className="mt-10">
-      <h2 className="text-2xl font-bold mb-4">Sua Agenda</h2>
+      <h2 className="text-2xl font-bold mb-4">Agenda</h2>
       <div className="p-4 bg-white rounded-lg shadow-md">
         <FullCalendar
-          ref={calendarRef} // <-- 5. Adicionar a ref ao componente
+          ref={calendarRef}
           plugins={[dayGridPlugin, timeGridPlugin, listPlugin, interactionPlugin]}
-          initialView="dayGridMonth" // <-- 6. MUDANÇA: Visão inicial (Mês)
+          initialView="dayGridMonth"
           headerToolbar={{
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek',
+            left: "prev,next today",
+            center: "title",
+            right: "dayGridMonth,timeGridWeek,timeGridDay,listWeek",
           }}
           events={events}
           locale="pt-br"
           buttonText={{
-            today: 'Hoje',
-            month: 'Mês',
-            week: 'Semana',
-            day: 'Dia',
-            list: 'Lista',
+            today: "Hoje",
+            month: "Mês",
+            week: "Semana",
+            day: "Dia",
+            list: "Lista",
           }}
           height="auto"
           slotMinTime="06:00:00"
           slotMaxTime="22:00:00"
           allDaySlot={false}
-          dateClick={handleDateClick} // <-- 7. Adicionar o handler de clique
+          dateClick={handleDateClick}
         />
       </div>
     </div>

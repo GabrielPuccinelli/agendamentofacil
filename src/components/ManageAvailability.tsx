@@ -1,197 +1,146 @@
-// src/components/ManageAvailability.tsx
-import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { useState } from "react";
+import { supabase } from "../lib/supabaseClient";
+import { useQuery, useMutation, useQueryClient } from "react-query";
 
-// Define o "formato" da disponibilidade
 type Availability = {
   id: string;
   day_of_week: number;
   start_time: string;
   end_time: string;
-  member_id: string;
 };
 
-// Precisamos saber quem é o usuário (admin) para atribuir o horário
 type Props = {
-  memberId: string; // ID do 'member' logado
+  memberId: string;
 };
 
-// Helper para converter número em dia da semana
 const daysOfWeek = [
-  { id: 0, name: 'Domingo' },
-  { id: 1, name: 'Segunda-feira' },
-  { id: 2, name: 'Terça-feira' },
-  { id: 3, name: 'Quarta-feira' },
-  { id: 4, name: 'Quinta-feira' },
-  { id: 5, name: 'Sexta-feira' },
-  { id: 6, name: 'Sábado' },
+  { id: 0, name: "Domingo" },
+  { id: 1, name: "Segunda-feira" },
+  { id: 2, name: "Terça-feira" },
+  { id: 3, name: "Quarta-feira" },
+  { id: 4, name: "Quinta-feira" },
+  { id: 5, name: "Sexta-feira" },
+  { id: 6, name: "Sábado" },
 ];
 
 export default function ManageAvailability({ memberId }: Props) {
-  const [availabilities, setAvailabilities] = useState<Availability[]>([]);
-  const [day, setDay] = useState(1); // Padrão: Segunda-feira
-  const [startTime, setStartTime] = useState('09:00');
-  const [endTime, setEndTime] = useState('18:00');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const queryClient = useQueryClient();
+  const [day, setDay] = useState(1);
+  const [startTime, setStartTime] = useState("09:00");
+  const [endTime, setEndTime] = useState("18:00");
 
-  // READ (Ler horários do banco ao carregar)
-  useEffect(() => {
-    const fetchAvailabilities = async () => {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from('availability')
-        .select('*')
-        .eq('member_id', memberId) // Só pega os horários deste 'member'
-        .order('day_of_week', { ascending: true }); // Ordena por dia
-
-      if (error) {
-        console.error('Erro ao buscar horários:', error);
-        setError('Não foi possível carregar os horários.');
-      } else {
-        setAvailabilities(data || []);
-      }
-      setLoading(false);
-    };
-
-    if (memberId) {
-      fetchAvailabilities();
-    }
-  }, [memberId]);
-
-  // CREATE (Criar novo horário)
-  const handleCreateAvailability = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-
+  const {
+    data: availabilities,
+    isLoading,
+    error,
+  } = useQuery(["availability", memberId], async () => {
     const { data, error } = await supabase
-      .from('availability')
-      .insert({
-        day_of_week: day,
-        start_time: startTime,
-        end_time: endTime,
-        member_id: memberId,
-      })
-      .select()
-      .single();
+      .from("availability")
+      .select("*")
+      .eq("member_id", memberId)
+      .order("day_of_week", { ascending: true });
+    if (error) throw new Error(error.message);
+    return data as Availability[];
+  });
 
-    if (error) {
-      console.error('Erro ao criar horário:', error);
-      setError('Erro ao criar horário. Verifique suas permissões (RLS).');
-    } else if (data) {
-      // Adiciona o novo horário à lista e reordena
-      const updatedList = [...availabilities, data].sort(
-        (a, b) => a.day_of_week - b.day_of_week
-      );
-      setAvailabilities(updatedList);
+  const createAvailabilityMutation = useMutation(
+    async ({ day, startTime, endTime }: { day: number, startTime: string, endTime: string }) => {
+      const { data, error } = await supabase
+        .from("availability")
+        .insert({ day_of_week: day, start_time: startTime, end_time: endTime, member_id: memberId })
+        .select()
+        .single();
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(["availability", memberId]);
+      },
     }
-  };
+  );
 
-  // DELETE (Excluir horário)
-  const handleDeleteAvailability = async (id: string) => {
-    if (!window.confirm('Tem certeza que quer excluir este horário?')) {
+  const deleteAvailabilityMutation = useMutation(
+    async (id: string) => {
+      const { error } = await supabase.from("availability").delete().eq("id", id);
+      if (error) throw new Error(error.message);
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(["availability", memberId]);
+      },
+    }
+  );
+
+  const handleCreateAvailability = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (startTime >= endTime) {
+      alert("O horário de início deve ser anterior ao horário de término.");
       return;
     }
+    createAvailabilityMutation.mutate({ day, startTime, endTime });
+  };
 
-    const { error } = await supabase.from('availability').delete().eq('id', id);
-
-    if (error) {
-      console.error('Erro ao excluir:', error);
-      setError('Não foi possível excluir o horário.');
-    } else {
-      setAvailabilities(availabilities.filter((a) => a.id !== id));
+  const handleDeleteAvailability = (id: string) => {
+    if (window.confirm("Tem certeza que quer excluir este horário?")) {
+      deleteAvailabilityMutation.mutate(id);
     }
   };
 
-  if (loading) return <p>Carregando horários...</p>;
-
-  // Helper para formatar a hora (ex: 09:00 -> 09h00)
-  const formatTime = (time: string) => time.replace(':', 'h');
+  const formatTime = (time: string) => time.slice(0, 5).replace(":", "h");
 
   return (
-    <div className="mt-10">
-      <h2 className="text-2xl font-bold">Gerenciar Horários de Trabalho</h2>
-      
-      {/* Formulário de Criação (CREATE) */}
-      <form onSubmit={handleCreateAvailability} className="mt-4 p-4 border rounded-md bg-gray-50">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-x-6 gap-y-4">
-          
-          {/* Campo Dia da Semana */}
+    <div className="mt-6">
+      <h2 className="text-xl font-semibold mb-4">Gerenciar Horários de Trabalho</h2>
+      <form onSubmit={handleCreateAvailability} className="p-4 border rounded-md bg-gray-50 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="md:col-span-2">
-            <label htmlFor="dayOfWeek" className="block text-sm font-medium text-gray-700">
-              Dia da Semana
-            </label>
-            <select
-              id="dayOfWeek"
-              value={day}
-              onChange={(e) => setDay(parseInt(e.target.value))}
-              className="mt-1 p-2 block w-full border border-gray-300 rounded-md shadow-sm"
-            >
+            <label className="block text-sm font-medium">Dia da Semana</label>
+            <select value={day} onChange={(e) => setDay(parseInt(e.target.value))} className="mt-1 p-2 w-full border rounded-md">
               {daysOfWeek.map((d) => (
                 <option key={d.id} value={d.id}>{d.name}</option>
               ))}
             </select>
           </div>
-
-          {/* Campo Hora Início */}
           <div>
-            <label htmlFor="startTime" className="block text-sm font-medium text-gray-700">
-              Início
-            </label>
-            <input
-              type="time"
-              id="startTime"
-              required
-              value={startTime}
-              onChange={(e) => setStartTime(e.target.value)}
-              className="mt-1 p-2 block w-full border border-gray-300 rounded-md shadow-sm"
-            />
+            <label className="block text-sm font-medium">Início</label>
+            <input type="time" required value={startTime} onChange={(e) => setStartTime(e.target.value)} className="mt-1 p-2 w-full border rounded-md"/>
           </div>
-
-          {/* Campo Hora Fim */}
           <div>
-            <label htmlFor="endTime" className="block text-sm font-medium text-gray-700">
-              Fim
-            </label>
-            <input
-              type="time"
-              id="endTime"
-              required
-              value={endTime}
-              onChange={(e) => setEndTime(e.target.value)}
-              className="mt-1 p-2 block w-full border border-gray-300 rounded-md shadow-sm"
-            />
+            <label className="block text-sm font-medium">Fim</label>
+            <input type="time" required value={endTime} onChange={(e) => setEndTime(e.target.value)} className="mt-1 p-2 w-full border rounded-md"/>
           </div>
         </div>
-        
-        <div className="mt-5 text-right">
-          <button type="submit" className="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">
-            Adicionar Horário
+        <div className="text-right mt-4">
+          <button type="submit" disabled={createAvailabilityMutation.isLoading} className="px-5 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300">
+            {createAvailabilityMutation.isLoading ? "Adicionando..." : "Adicionar Horário"}
           </button>
         </div>
       </form>
-      {error && <p className="text-red-600 mt-2">{error}</p>}
 
-      {/* Lista de Horários (READ / DELETE) */}
-      <div className="mt-6 space-y-3">
-        {availabilities.length === 0 && !loading && <p>Nenhum horário de trabalho cadastrado.</p>}
-        
-        {availabilities.map((avail) => (
-          <div key={avail.id} className="flex justify-between items-center p-3 border rounded-md shadow-sm bg-white">
-            <div>
-              <p className="font-semibold">{daysOfWeek.find(d => d.id === avail.day_of_week)?.name}</p>
-              <p className="text-sm text-gray-600">
-                {formatTime(avail.start_time)} às {formatTime(avail.end_time)}
-              </p>
+      {createAvailabilityMutation.isError && <p className="text-red-600">{(createAvailabilityMutation.error as Error).message}</p>}
+      {deleteAvailabilityMutation.isError && <p className="text-red-600">{(deleteAvailabilityMutation.error as Error).message}</p>}
+
+      <div className="space-y-2">
+        {isLoading ? (
+          <p>Carregando horários...</p>
+        ) : error ? (
+          <p className="text-red-600">{(error as Error).message}</p>
+        ) : availabilities?.length === 0 ? (
+          <p>Nenhum horário de trabalho cadastrado.</p>
+        ) : (
+          availabilities?.map((avail) => (
+            <div key={avail.id} className="flex justify-between items-center p-3 bg-white border rounded-md">
+              <div>
+                <p className="font-semibold">{daysOfWeek.find(d => d.id === avail.day_of_week)?.name}</p>
+                <p className="text-sm text-gray-600">{formatTime(avail.start_time)} às {formatTime(avail.end_time)}</p>
+              </div>
+              <button onClick={() => handleDeleteAvailability(avail.id)} className="px-3 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200">
+                Excluir
+              </button>
             </div>
-            <button
-              onClick={() => handleDeleteAvailability(avail.id)}
-              className="px-3 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200"
-            >
-              Excluir
-            </button>
-          </div>
-        ))}
+          ))
+        )}
       </div>
     </div>
   );
