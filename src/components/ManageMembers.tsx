@@ -9,7 +9,8 @@ type Member = {
   name: string;
   slug: string;
   role: string;
-  user_id: string | null; // user_id pode ser nulo se o funcionário não tiver login
+  user_id: string | null;
+  can_edit_profile: boolean;
 };
 
 type Props = {
@@ -104,6 +105,21 @@ export default function ManageMembers({ organizationId }: Props) {
     }
   };
 
+  const handleTogglePermission = async (memberId: string, currentStatus: boolean) => {
+    const { error } = await supabase
+      .from('members')
+      .update({ can_edit_profile: !currentStatus })
+      .eq('id', memberId);
+
+    if (error) {
+      setError('Erro ao atualizar permissão.');
+    } else {
+      setMembers(members.map(m =>
+        m.id === memberId ? { ...m, can_edit_profile: !currentStatus } : m
+      ));
+    }
+  };
+
   if (loading) return <p>Carregando equipe...</p>;
 
   return (
@@ -156,6 +172,18 @@ export default function ManageMembers({ organizationId }: Props) {
             </Link>
             {member.role !== 'admin' ? (
               <div className="flex items-center">
+                <div className="flex items-center mr-4">
+                  <input
+                    type="checkbox"
+                    id={`edit-permission-${member.id}`}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    checked={member.can_edit_profile}
+                    onChange={() => handleTogglePermission(member.id, member.can_edit_profile)}
+                  />
+                  <label htmlFor={`edit-permission-${member.id}`} className="ml-2 text-sm text-gray-600">
+                    Pode Editar
+                  </label>
+                </div>
                 <Link to={`/member/${member.id}/dashboard`} className="px-3 py-1 bg-gray-100 text-gray-700 rounded-md hover:bg-gray-200 mr-2 text-sm">
                   Gerenciar
                 </Link>
