@@ -17,18 +17,13 @@ export default function DashboardPage() {
   const [canEditProfile, setCanEditProfile] = useState(false);
 
   useEffect(() => {
-    // --- ESTA É A CORREÇÃO PRINCIPAL ---
-    // Usamos onAuthStateChange, que é a "fonte da verdade"
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => { 
       
       if (!session) {
-        // Se a sessão for nula (ou o token for inválido e limpo),
-        // envia para o login.
         navigate('/');
         return;
       }
 
-      // Se a sessão EXISTE, agora verificamos o onboarding
       const user = session.user;
       
       try {
@@ -36,7 +31,7 @@ export default function DashboardPage() {
           .from('members')
           .select('id, name, role, organization_id, can_edit_profile')
           .eq('user_id', user.id)
-          .single();
+          .maybeSingle();
 
         if (memberError) throw memberError;
 
@@ -44,27 +39,21 @@ export default function DashboardPage() {
           setUserName(member.name);
           setOrganizationId(member.organization_id);
           setMemberId(member.id);
+          setIsAdmin(member.role === 'admin');
           setCanEditProfile(member.can_edit_profile);
-          if (member.role === 'admin') {
-            setIsAdmin(true);
-          }
           setLoading(false);
         } else {
-          // O usuário está logado MAS NÃO FEZ onboarding
           navigate('/onboarding');
         }
       } catch (err: any) {
         console.error("Erro no 'gatekeeper' do dashboard:", err);
-        // Se der erro (ex: RLS), manda para o login por segurança
         navigate('/');
       }
     });
 
-    // Limpa o listener ao sair da página
     return () => {
       subscription.unsubscribe();
     };
-    // Array vazio para rodar APENAS UMA VEZ
   }, [navigate]); 
 
   const handleLogout = async () => {
@@ -80,7 +69,6 @@ export default function DashboardPage() {
     );
   }
 
-  // O resto do return (renderização) permanece o mesmo
   return (
     <div className="p-4 md:p-8 max-w-6xl mx-auto">
       <div className="flex justify-between items-center mb-8">
@@ -93,8 +81,8 @@ export default function DashboardPage() {
         </button>
       </div>
 
-      {organizationId && memberId && (
-        <AgendaCalendar organizationId={organizationId} memberId={memberId} />
+      {organizationId && (
+        <AgendaCalendar organizationId={organizationId} />
       )}
       
       <hr className="my-10 border-t-2" /> 
@@ -102,19 +90,20 @@ export default function DashboardPage() {
       {isAdmin && organizationId && (
         <>
           <ManageMembers organizationId={organizationId} />
-          <hr className="my-10" /> 
+          <hr className="my-10" />
         </>
       )}
 
-      {/* Admins or staff with permission can manage their profile */}
       {(isAdmin || canEditProfile) && memberId && (
         <>
           <ManageAvailability memberId={memberId} />
           <hr className="my-10" />
-          <ManageServices organizationId={organizationId!} memberId={memberId} />
+          <ManageServices
+            memberId={memberId}
+            organizationId={isAdmin && organizationId ? organizationId : undefined}
+          />
         </>
       )}
-      
     </div>
   );
 }

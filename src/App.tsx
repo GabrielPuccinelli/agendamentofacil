@@ -5,7 +5,7 @@ import DashboardPage from './pages/DashboardPage'
 import OnboardingPage from './pages/OnboardingPage'
 import PublicPage from './pages/PublicPage'
 import OrganizationPage from './pages/OrganizationPage'
-import MemberDashboardPage from './pages/MemberDashboardPage'
+import MemberDashboardPage from "./pages/MemberDashboardPage";
 
 function App() {
   return (
@@ -14,8 +14,8 @@ function App() {
         {/* Rotas de Admin */}
         <Route path="/" element={<AuthPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/member/:memberId/dashboard" element={<MemberDashboardPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
+        <Route path="/member/:memberId/dashboard" element={<MemberDashboardPage />} />
 
         {/* Rotas Públicas (NOVA ESTRUTURA) */}
 

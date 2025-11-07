@@ -1,218 +1,199 @@
-// src/components/ManageServices.tsx
-import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { useState } from "react";
+import { supabase } from "../lib/supabaseClient";
+import { useQuery, useMutation, useQueryClient } from "react-query";
 
-// Define o "formato" de um serviço
 type Service = {
   id: string;
   name: string;
-  duration_minutes: number;
-  price: number;
+  duration: number;
   organization_id: string;
 };
 
-// Props para o componente
 type Props = {
-  organizationId: string;
-  memberId?: string; // O ID do membro é opcional. Se for o dashboard do admin, não haverá um.
+  memberId: string;
+  organizationId?: string;
 };
 
-export default function ManageServices({ organizationId, memberId }: Props) {
-  const [services, setServices] = useState<Service[]>([]); // Todos os serviços da empresa
-  const [assignedServiceIds, setAssignedServiceIds] = useState<Set<string>>(new Set()); // IDs dos serviços do membro
-  const [name, setName] = useState('');
+export default function ManageServices({ memberId, organizationId }: Props) {
+  const queryClient = useQueryClient();
+  const [name, setName] = useState("");
   const [duration, setDuration] = useState(30);
-  const [price, setPrice] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
 
-  // READ (Carrega os dados ao iniciar)
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-
-      // 1. Busca TODOS os serviços da organização
-      const { data: orgServices, error: servicesError } = await supabase
-        .from('services')
-        .select('*')
-        .eq('organization_id', organizationId);
-
-      if (servicesError) {
-        console.error('Erro ao buscar serviços:', servicesError);
-        setError('Não foi possível carregar os serviços.');
-        setLoading(false);
-        return;
+  const { data: allServices, isLoading: isLoadingServices } = useQuery(
+    ["services", organizationId],
+    async () => {
+      let orgId = organizationId;
+      if (!orgId) {
+        const { data: memberData, error: memberError } = await supabase
+          .from("members")
+          .select("organization_id")
+          .eq("id", memberId)
+          .single();
+        if (memberError) throw new Error(memberError.message);
+        orgId = memberData.organization_id;
       }
-      setServices(orgServices || []);
 
-      // 2. Se estivermos no dashboard de um membro, busca os serviços VINCULADOS a ele
-      if (memberId) {
-        const { data: memberServices, error: memberServicesError } = await supabase
-          .from('member_services')
-          .select('service_id')
-          .eq('member_id', memberId);
+      const { data, error } = await supabase
+        .from("services")
+        .select("*")
+        .eq("organization_id", orgId);
+      if (error) throw new Error(error.message);
+      return data as Service[];
+    },
+    {
+      enabled: !!organizationId || !!memberId,
+    }
+  );
 
-        if (memberServicesError) {
-          console.error('Erro ao buscar serviços do membro:', memberServicesError);
-          setError('Não foi possível carregar os serviços do membro.');
-        } else {
-          // Cria um Set (conjunto) com os IDs dos serviços para checagem rápida
-          setAssignedServiceIds(new Set(memberServices.map(s => s.service_id)));
-        }
+  const { data: memberServices, isLoading: isLoadingMemberServices } = useQuery(
+    ["memberServices", memberId],
+    async () => {
+      const { data, error } = await supabase
+        .from("member_services")
+        .select("id, service_id")
+        .eq("member_id", memberId);
+      if (error) throw new Error(error.message);
+      return new Set(data.map((ms) => ms.service_id));
+    },
+    { enabled: !!memberId }
+  );
+
+  const createServiceMutation = useMutation(
+    async ({ name, duration }: { name: string; duration: number }) => {
+      if (!organizationId) throw new Error("Apenas admins podem criar serviços.");
+
+      const { data, error } = await supabase
+        .from("services")
+        .insert({ name, duration, organization_id: organizationId })
+        .select()
+        .single();
+      if (error) throw new Error(error.message);
+      return data;
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(["services", organizationId]);
+        setName("");
+        setDuration(30);
+      },
+    }
+  );
+
+  const toggleServiceMutation = useMutation(
+    async ({
+      serviceId,
+      isAssigned,
+    }: {
+      serviceId: string;
+      isAssigned: boolean;
+    }) => {
+      if (isAssigned) {
+        const { error } = await supabase
+          .from("member_services")
+          .delete()
+          .match({ member_id: memberId, service_id: serviceId });
+        if (error) throw new Error(error.message);
+      } else {
+        const { error } = await supabase
+          .from("member_services")
+          .insert({ member_id: memberId, service_id: serviceId });
+        if (error) throw new Error(error.message);
       }
-      setLoading(false);
-    };
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(["memberServices", memberId]);
+      },
+    }
+  );
 
-    fetchData();
-  }, [organizationId, memberId]);
-
-  // CREATE (Criar novo serviço)
-  const handleCreateService = async (e: React.FormEvent) => {
+  const handleCreateService = (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-
-    const { data, error } = await supabase
-      .from('services')
-      .insert({
-        name,
-        duration_minutes: duration,
-        price,
-        organization_id: organizationId, // Associa à organização do admin
-      })
-      .select() // Pede ao Supabase para retornar o objeto criado
-      .single(); // Esperamos apenas um
-
-    if (error) {
-      console.error('Erro ao criar serviço:', error);
-      setError('Erro ao criar serviço. Verifique suas permissões (RLS).');
-    } else if (data) {
-      // Adiciona o novo serviço à lista na tela, sem precisar recarregar
-      setServices([...services, data]);
-      // Limpa o formulário
-      setName('');
-      setDuration(30);
-      setPrice(0);
-    }
+    createServiceMutation.mutate({ name, duration });
   };
 
-  // DELETE (Excluir serviço)
-  const handleDeleteService = async (serviceId: string) => {
-    // Confirmação
-    if (!window.confirm('Tem certeza que quer excluir este serviço?')) {
-      return;
-    }
-
-    const { error } = await supabase
-      .from('services')
-      .delete()
-      .eq('id', serviceId);
-
-    if (error) {
-      console.error('Erro ao excluir:', error);
-      setError('Não foi possível excluir o serviço.');
-    } else {
-      // Remove o serviço da lista na tela
-      setServices(services.filter((s) => s.id !== serviceId));
-    }
-  };
-  
-  // (O 'UPDATE' (editar) é um pouco mais complexo, vamos focar no C, R, D primeiro)
-
-  const handleToggleService = async (serviceId: string, isAssigned: boolean) => {
-    if (!memberId) return;
-
-    if (isAssigned) {
-      // Remove o vínculo
-      const { error } = await supabase
-        .from('member_services')
-        .delete()
-        .eq('member_id', memberId)
-        .eq('service_id', serviceId);
-
-      if (error) {
-        setError('Erro ao desatribuir o serviço.');
-      } else {
-        const newAssignedIds = new Set(assignedServiceIds);
-        newAssignedIds.delete(serviceId);
-        setAssignedServiceIds(newAssignedIds);
-      }
-    } else {
-      // Adiciona o vínculo
-      const { error } = await supabase
-        .from('member_services')
-        .insert({ member_id: memberId, service_id: serviceId });
-
-      if (error) {
-        setError('Erro ao atribuir o serviço.');
-      } else {
-        const newAssignedIds = new Set(assignedServiceIds);
-        newAssignedIds.add(serviceId);
-        setAssignedServiceIds(newAssignedIds);
-      }
-    }
+  const handleToggleService = (serviceId: string, isAssigned: boolean) => {
+    toggleServiceMutation.mutate({ serviceId, isAssigned });
   };
 
-  if (loading) return <p>Carregando serviços...</p>;
+  const isLoading = isLoadingServices || isLoadingMemberServices;
 
   return (
-    <div className="mt-10">
-      <h2 className="text-2xl font-bold">
-        {memberId ? 'Gerenciar Serviços do Membro' : 'Gerenciar Serviços da Empresa'}
-      </h2>
-      
-      {/* O formulário de criação de serviços só aparece para o admin em seu próprio dashboard */}
-      {!memberId && (
-        <form onSubmit={handleCreateService} className="mt-4 p-4 border rounded-md bg-gray-50">
-          {/* ... (conteúdo do formulário permanece o mesmo) ... */}
+    <div className="mt-6">
+      <h2 className="text-xl font-semibold mb-4">Gerenciar Serviços</h2>
+
+      {organizationId && (
+        <form
+          onSubmit={handleCreateService}
+          className="p-4 border rounded-md bg-gray-50 mb-6"
+        >
+          <h3 className="font-medium mb-2">Criar Novo Serviço para a Organização</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <input
+              type="text"
+              placeholder="Nome do Serviço"
+              required
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="p-2 border rounded-md"
+            />
+            <input
+              type="number"
+              placeholder="Duração (minutos)"
+              required
+              value={duration}
+              onChange={(e) => setDuration(parseInt(e.target.value))}
+              className="p-2 border rounded-md"
+            />
+            <button
+              type="submit"
+              disabled={createServiceMutation.isLoading}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-blue-300"
+            >
+              {createServiceMutation.isLoading ? "Criando..." : "Criar Serviço"}
+            </button>
+          </div>
+          {createServiceMutation.isError && (
+            <p className="text-red-600 mt-2">
+              {(createServiceMutation.error as Error).message}
+            </p>
+          )}
         </form>
       )}
 
-      {error && <p className="text-red-600 mt-2">{error}</p>}
-
-      {/* Lista de Serviços */}
-      <div className="mt-6 space-y-3">
-        {services.length === 0 && !loading && <p>Nenhum serviço cadastrado para a empresa.</p>}
-        
-        {services.map((service) => {
-          const isAssigned = assignedServiceIds.has(service.id);
-          return (
-            <div key={service.id} className="flex justify-between items-center p-3 border rounded-md shadow-sm bg-white">
-              <div>
-                <p className="font-semibold">{service.name}</p>
-                <p className="text-sm text-gray-600">
-                  {service.duration_minutes} min - R$ {service.price.toFixed(2)}
-                </p>
+      <h3 className="font-medium mb-2">Atribuir Serviços</h3>
+      <div className="space-y-2">
+        {isLoading ? (
+          <p>Carregando serviços...</p>
+        ) : !allServices || allServices.length === 0 ? (
+          <p>Nenhum serviço encontrado na organização. Crie um serviço primeiro.</p>
+        ) : (
+          allServices.map((service) => {
+            const isAssigned = memberServices?.has(service.id) ?? false;
+            return (
+              <div
+                key={service.id}
+                className="flex items-center justify-between p-3 bg-white border rounded-md"
+              >
+                <span>
+                  {service.name} ({service.duration} min)
+                </span>
+                <input
+                  type="checkbox"
+                  checked={isAssigned}
+                  onChange={() => handleToggleService(service.id, isAssigned)}
+                  className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
               </div>
-
-              {/* Se estamos no dashboard de um membro, mostramos o checkbox */}
-              {memberId && (
-                <div className="flex items-center">
-                  <label htmlFor={`service-${service.id}`} className="mr-2 text-sm text-gray-600">
-                    {isAssigned ? 'Atribuído' : 'Não atribuído'}
-                  </label>
-                  <input
-                    type="checkbox"
-                    id={`service-${service.id}`}
-                    className="h-6 w-6 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    checked={isAssigned}
-                    onChange={() => handleToggleService(service.id, isAssigned)}
-                  />
-                </div>
-              )}
-
-              {/* Se estamos no dashboard do admin, mostramos o botão de excluir */}
-              {!memberId && (
-                <button
-                  onClick={() => handleDeleteService(service.id)}
-                  className="px-3 py-1 bg-red-100 text-red-700 rounded-md hover:bg-red-200"
-                >
-                  Excluir
-                </button>
-              )}
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
+       {toggleServiceMutation.isError && (
+        <p className="text-red-600 mt-2">
+          {(toggleServiceMutation.error as Error).message}
+        </p>
+      )}
     </div>
   );
 }
