@@ -4,14 +4,16 @@ import { supabase } from '../lib/supabaseClient';
 import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { useNavigate } from 'react-router-dom';
-import type { Session } from '@supabase/supabase-js';
+import type { Session } from '@supabase/supabase-js'; // Import Session type
 
 export default function AuthPage() {
   const navigate = useNavigate();
+  // Corrigido: Inicializa a sessão como null
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // 1. Pega a sessão inicial
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
@@ -20,8 +22,10 @@ export default function AuthPage() {
       }
     });
 
+    // 2. Escuta por mudanças na autenticação
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
+      // Redireciona no login/logout
       if (session) {
         navigate('/dashboard');
       } else {
@@ -36,6 +40,7 @@ export default function AuthPage() {
      return <div className="flex justify-center items-center min-h-screen">Carregando...</div>;
   }
 
+  // Mostra o formulário de login apenas se não houver sessão
   if (!session) {
     return (
       <div className="flex justify-center items-center min-h-screen bg-gray-100">
@@ -67,6 +72,7 @@ export default function AuthPage() {
       </div>
     )
   }
-  
+
+  // Se houver sessão, o useEffect já redirecionou. Mostra um loader.
   return <div className="flex justify-center items-center min-h-screen">Redirecionando...</div>;
 }

@@ -1,4 +1,4 @@
-// src/components/ManageServices.tsx - VERSÃO FINAL COM LEGENDAS
+// src/components/ManageServices.tsx
 import { useState } from "react";
 import { supabase } from "../lib/supabaseClient";
 import { useQuery, useMutation, useQueryClient } from "react-query";
@@ -69,6 +69,25 @@ export default function ManageServices({ memberId, organizationId }: Props) {
     }
   );
 
+  const deleteServiceMutation = useMutation(
+    async (serviceId: string) => {
+      if (!organizationId) throw new Error("Apenas admins podem excluir serviços.");
+
+      // Primeiro, remove as associações
+      await supabase.from("member_services").delete().eq("service_id", serviceId);
+
+      // Depois, remove o serviço
+      const { error } = await supabase.from("services").delete().eq("id", serviceId);
+      if (error) throw new Error(error.message);
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(["services", organizationId]);
+        queryClient.invalidateQueries(["memberServices", memberId]);
+      },
+    }
+  );
+
   const toggleServiceMutation = useMutation(
     async ({ serviceId, isAssigned }: { serviceId: string; isAssigned: boolean; }) => {
       if (isAssigned) {
@@ -89,6 +108,12 @@ export default function ManageServices({ memberId, organizationId }: Props) {
   const handleCreateService = (e: React.FormEvent) => {
     e.preventDefault();
     createServiceMutation.mutate({ name, duration, price });
+  };
+
+  const handleDeleteService = (serviceId: string) => {
+    if (window.confirm("Tem certeza que deseja excluir este serviço? Esta ação removerá o serviço de todos os profissionais que o utilizam.")) {
+      deleteServiceMutation.mutate(serviceId);
+    }
   };
 
   const handleToggleService = (serviceId: string, isAssigned: boolean) => {
@@ -153,7 +178,7 @@ export default function ManageServices({ memberId, organizationId }: Props) {
         </form>
       )}
 
-      <h3 className="font-medium mb-2">Atribuir Serviços</h3>
+      <h3 className="font-medium mb-2">{organizationId ? 'Serviços da Organização' : 'Atribuir Serviços'}</h3>
       <div className="space-y-2">
         {isLoading ? (
           <p>Carregando serviços...</p>
@@ -167,15 +192,28 @@ export default function ManageServices({ memberId, organizationId }: Props) {
                 key={service.id}
                 className="flex items-center justify-between p-3 bg-white border rounded-md"
               >
-                <p>
-                  {service.name} ({service.duration} min) - <span className="font-semibold">R$ {service.price.toFixed(2)}</span>
-                </p>
-                <input
-                  type="checkbox"
-                  checked={isAssigned}
-                  onChange={() => handleToggleService(service.id, isAssigned)}
-                  className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
+                <div>
+                  <p>
+                    {service.name} ({service.duration} min) - <span className="font-semibold">R$ {service.price.toFixed(2)}</span>
+                  </p>
+                </div>
+                <div className="flex items-center space-x-4">
+                  {organizationId && (
+                     <button
+                        onClick={() => handleDeleteService(service.id)}
+                        disabled={deleteServiceMutation.isLoading}
+                        className="text-red-600 hover:text-red-800 disabled:opacity-50"
+                      >
+                       Excluir
+                     </button>
+                  )}
+                  <input
+                    type="checkbox"
+                    checked={isAssigned}
+                    onChange={() => handleToggleService(service.id, isAssigned)}
+                    className="h-5 w-5 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                  />
+                </div>
               </div>
             );
           })
@@ -184,6 +222,11 @@ export default function ManageServices({ memberId, organizationId }: Props) {
        {toggleServiceMutation.isError && (
         <p className="text-red-600 mt-2">
           {(toggleServiceMutation.error as Error).message}
+        </p>
+      )}
+       {deleteServiceMutation.isError && (
+        <p className="text-red-600 mt-2">
+          {(deleteServiceMutation.error as Error).message}
         </p>
       )}
     </div>
