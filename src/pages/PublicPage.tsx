@@ -3,23 +3,20 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 
-// Importações (DayPicker, date-fns, etc.)
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { ptBR } from 'date-fns/locale';
 import { format, addMinutes, setHours, setMinutes } from 'date-fns';
 
-// --- Tipos de Dados ---
 type Organization = { id: string; name: string; };
 type Service = { id: string; name: string; duration: number; price: number; };
 type Availability = { day_of_week: number; start_time: string; end_time: string; };
 
 export default function PublicPage() {
-  const { slug } = useParams<{ slug: string }>();
+  const { organizationSlug, memberSlug } = useParams<{ organizationSlug: string, memberSlug: string }>();
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-  // ... (Todos os outros 'useState' permanecem iguais) ...
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [services, setServices] = useState<Service[]>([]);
   const [availability, setAvailability] = useState<Availability[]>([]);
@@ -34,11 +31,10 @@ export default function PublicPage() {
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
 
-
-  // --- 1. Efeito para Buscar Dados (CORRIGIDO) ---
+  // --- 1. Efeito para Buscar Dados Iniciais ---
   useEffect(() => {
-    if (!slug) {
-      setError('Nenhum profissional encontrado.');
+    if (!organizationSlug || !memberSlug) {
+      setError('Link inválido.');
       setLoading(false);
       return;
     }
@@ -54,20 +50,16 @@ export default function PublicPage() {
             id,
             name,
             organization_id,
-            organizations ( name ) 
+            organizations ( name, slug )
           `)
-          .eq('slug', slug)
+          .eq('slug', memberSlug)
+          .eq('organizations.slug', organizationSlug)
           .single();
 
-        if (memberError) throw new Error('Profissional não encontrado. (Verifique o slug)');
-        if (!memberData) throw new Error('Profissional não encontrado.');
+        if (memberError || !memberData) throw new Error('Profissional não encontrado. (Verifique o link)');
 
         const org = memberData.organizations as unknown as { name: string } | null;
-        
-        if (!org) { 
-          console.error("Erro: O 'join' com a organização falhou. O objeto 'organizations' é nulo.");
-          throw new Error("A organização deste profissional não foi encontrada. (Verifique o RLS da 'organizations')");
-        }
+        if (!org) throw new Error("A organização deste profissional não foi encontrada.");
 
         setOrganization({ id: memberData.organization_id, name: org.name });
         setMemberId(memberData.id);
@@ -80,9 +72,7 @@ export default function PublicPage() {
 
         if (servicesError) throw new Error("Erro ao buscar os serviços do profissional.");
 
-        const professionalServices = servicesData
-          .map(item => item.services)
-          .filter(Boolean) as Service[];
+        const professionalServices = servicesData.map(item => item.services).filter(Boolean) as Service[];
         setServices(professionalServices);
 
         const { data: availabilityData, error: availabilityError } = await supabase
@@ -99,8 +89,7 @@ export default function PublicPage() {
       }
     };
     fetchData();
-  }, [slug]);
-
+  }, [organizationSlug, memberSlug]);
 
   // --- 2. Efeito para Calcular Horários Livres ---
   useEffect(() => {
@@ -152,7 +141,6 @@ export default function PublicPage() {
     calculateSlots();
   }, [selectedService, selectedDate, memberId, availability]);
   
-
   // --- 3. Função para Salvar o Agendamento (CREATE) ---
   const handleBookAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -189,7 +177,6 @@ export default function PublicPage() {
   };
 
   // --- Renderização da Página ---
-  
   if (loading) { 
     return <div className="flex justify-center items-center min-h-screen"><h1 className="text-2xl">Carregando agendamento...</h1></div>;
   }

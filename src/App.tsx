@@ -17,13 +17,13 @@ function App() {
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route path="/member/:memberId/dashboard" element={<MemberDashboardPage />} />
 
-        {/* Rotas Públicas (NOVA ESTRUTURA) */}
+        {/* Rotas Públicas (ESTRUTURA CORRIGIDA) */}
 
         {/* Rota da EMPRESA (Vitrine de Profissionais) */}
-        <Route path="/e/:slug" element={<OrganizationPage />} />
+        <Route path="/e/:organizationSlug" element={<OrganizationPage />} />
 
-        {/* Rota do PROFISSIONAL (Agenda/Booking) */}
-        <Route path="/p/:slug" element={<PublicPage />} /> 
+        {/* Rota do PROFISSIONAL (Agenda/Booking) - AGORA ANINHADA */}
+        <Route path="/e/:organizationSlug/p/:memberSlug" element={<PublicPage />} />
 
       </Routes>
     </BrowserRouter>
