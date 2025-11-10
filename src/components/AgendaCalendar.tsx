@@ -17,11 +17,10 @@ type CalendarEvent = {
 };
 
 type Props = {
-  organizationId?: string; // Optional: for fetching all bookings
-  memberId?: string;       // Optional: for fetching member-specific bookings
+  organizationId?: string;
+  memberId?: string;
 };
 
-// A component MUST receive either organizationId or memberId
 export default function AgendaCalendar({ organizationId, memberId }: Props) {
   const calendarRef = useRef<FullCalendar>(null);
 
@@ -35,7 +34,7 @@ export default function AgendaCalendar({ organizationId, memberId }: Props) {
     fetchKey,
     async () => {
       if (!organizationId && !memberId) {
-        return []; // Should not happen if component is used correctly
+        return [];
       }
 
       let query = supabase.from("bookings").select(`
@@ -49,12 +48,11 @@ export default function AgendaCalendar({ organizationId, memberId }: Props) {
       if (memberId) {
         query = query.eq("member_id", memberId);
       } else if (organizationId) {
-        // This requires a bit more work. Find all members of the org first.
         const { data: members, error: memberError } = await supabase
           .from("members")
           .select("id")
           .eq("organization_id", organizationId);
-
+        
         if (memberError) throw new Error(memberError.message);
         const memberIds = members.map(m => m.id);
         query = query.in("member_id", memberIds);

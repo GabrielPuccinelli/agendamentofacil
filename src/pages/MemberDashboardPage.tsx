@@ -4,7 +4,7 @@ import { supabase } from "../lib/supabaseClient";
 import ManageAvailability from "../components/ManageAvailability";
 import ManageServices from "../components/ManageServices";
 import AgendaCalendar from "../components/AgendaCalendar";
-import type { Member } from "../types"; // Corrigido: Importa o tipo Member
+import type { Member } from "../types";
 
 const MemberDashboardPage = () => {
   const { memberId } = useParams<{ memberId: string }>();
@@ -44,7 +44,6 @@ const MemberDashboardPage = () => {
         .eq("id", memberId)
         .single();
       if (error) throw new Error(error.message);
-      // Corrigido: Usa o tipo Member e Organization (parcial)
       return data as Member & { organizations: { name: string } };
     },
     { enabled: !!memberId }
@@ -57,8 +56,7 @@ const MemberDashboardPage = () => {
   if (error) {
     return <div>Ocorreu um erro: {(error as Error).message}</div>;
   }
-
-  // Corrigido: Garante que memberId é uma string antes de renderizar os filhos
+  
   if (!memberId) {
     return <div>ID de membro inválido.</div>;
   }

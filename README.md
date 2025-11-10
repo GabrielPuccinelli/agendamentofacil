@@ -71,3 +71,16 @@ export default defineConfig([
   },
 ])
 ```
+
+## Configuração do Banco de Dados (Supabase)
+
+Este projeto utiliza Row Level Security (RLS) no Supabase para proteger os dados. Para que a aplicação funcione corretamente, você precisa aplicar as políticas de segurança que estão no arquivo `src/lib/policies.sql`.
+
+### Como Aplicar as Políticas:
+
+1.  **Acesse o seu painel do Supabase.**
+2.  **Navegue até o "SQL Editor".**
+3.  **Abra o arquivo `src/lib/policies.sql`, copie todo o seu conteúdo.**
+4.  **Cole o conteúdo no SQL Editor e clique em "RUN".**
+
+Isso garantirá que as tabelas públicas possam ser lidas por todos os usuários, o que é essencial para o funcionamento das páginas de perfil.

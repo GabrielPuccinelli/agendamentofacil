@@ -3,14 +3,13 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { Link } from "react-router-dom";
 
-// Define o "formato" de um membro
 type Member = {
   id: string;
   name: string;
   slug: string;
   role: string;
   user_id: string | null;
-  can_edit_profile: boolean; // Novo campo de permissão
+  can_edit_profile: boolean;
 };
 
 type Props = {
@@ -24,7 +23,6 @@ export default function ManageMembers({ organizationId }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  // READ (Ler membros da organização)
   useEffect(() => {
     const fetchMembers = async () => {
       setLoading(true);
@@ -45,7 +43,6 @@ export default function ManageMembers({ organizationId }: Props) {
     fetchMembers();
   }, [organizationId]);
 
-  // Função para formatar o 'slug' (URL amigável)
   const handleSlugChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value
       .toLowerCase()
@@ -54,9 +51,6 @@ export default function ManageMembers({ organizationId }: Props) {
     setSlug(value);
   };
 
-  // CREATE (Adicionar novo funcionário)
-  // Nota: Esta é uma versão simplificada. O funcionário é 'staff' e não tem
-  // um login de acesso próprio (user_id é nulo).
   const handleCreateMember = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -67,7 +61,7 @@ export default function ManageMembers({ organizationId }: Props) {
         name,
         slug,
         organization_id: organizationId,
-        role: 'staff', // Todo novo membro é 'staff'
+        role: 'staff',
       })
       .select()
       .single();
@@ -86,7 +80,6 @@ export default function ManageMembers({ organizationId }: Props) {
     }
   };
 
-  // DELETE (Remover funcionário)
   const handleDeleteMember = async (memberId: string) => {
     if (!window.confirm('Tem certeza que quer remover este membro da equipe?')) {
       return;
@@ -102,7 +95,6 @@ export default function ManageMembers({ organizationId }: Props) {
     }
   };
 
-  // UPDATE (Atualizar permissão do funcionário)
   const handleTogglePermission = async (member: Member) => {
     const updatedStatus = !member.can_edit_profile;
     const { error } = await supabase
@@ -128,7 +120,6 @@ export default function ManageMembers({ organizationId }: Props) {
     <div className="mt-10">
       <h2 className="text-2xl font-bold">Gerenciar Equipe (Funcionários)</h2>
       
-      {/* Formulário de Criação (CREATE) */}
       <form onSubmit={handleCreateMember} className="mt-4 p-4 border rounded-md bg-gray-50">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4">
           <div>
@@ -160,7 +151,6 @@ export default function ManageMembers({ organizationId }: Props) {
         {error && <p className="text-red-600 mt-2">{error}</p>}
       </form>
 
-      {/* Lista de Membros (READ / DELETE / UPDATE) */}
       <div className="mt-6 space-y-3">
         {members.map((member) => (
           <div key={member.id} className="flex justify-between items-center p-3 border rounded-md shadow-sm bg-white">
@@ -176,7 +166,6 @@ export default function ManageMembers({ organizationId }: Props) {
                 Ver Dashboard do Funcionário
               </Link>
             </div>
-            {/* Controles para 'staff' */}
             {member.role === 'staff' && (
               <div className="flex items-center space-x-4">
                 <div className="flex items-center">

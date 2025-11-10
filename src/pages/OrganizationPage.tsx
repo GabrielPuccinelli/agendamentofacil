@@ -24,7 +24,7 @@ export default function OrganizationPage() {
       try {
         setLoading(true);
         setError(null);
-
+        
         const { data: orgData, error: orgError } = await supabase
           .from('organizations')
           .select('id, name, slug')
@@ -32,7 +32,7 @@ export default function OrganizationPage() {
           .single();
 
         if (orgError || !orgData) throw new Error('Empresa não encontrada ou indisponível. Verifique o link ou tente novamente mais tarde.');
-
+        
         setOrganization(orgData);
 
         const { data: membersData, error: membersError } = await supabase
@@ -56,11 +56,11 @@ export default function OrganizationPage() {
   if (loading) {
     return <div className="flex justify-center items-center min-h-screen"><h1 className="text-2xl">Carregando...</h1></div>;
   }
-
+  
   if (error) {
     return <div className="flex justify-center items-center min-h-screen"><h1 className="text-2xl text-red-600">{error}</h1></div>;
   }
-
+  
   if (!organization) {
      return <div className="flex justify-center items-center min-h-screen"><h1 className="text-2xl text-gray-500">Página da empresa não encontrada.</h1></div>;
   }
@@ -75,9 +75,9 @@ export default function OrganizationPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {members.map(member => (
           // CORRIGIDO: O Link agora usa a nova estrutura de URL
-          <Link
+          <Link 
             key={member.id}
-            to={`/e/${organization.slug}/p/${member.slug}`}
+            to={`/e/${organization.slug}/p/${member.slug}`} 
             className="block p-6 bg-white rounded-lg shadow-lg hover:shadow-xl transition-shadow"
           >
             <h2 className="text-2xl font-bold text-gray-800">{member.name}</h2>

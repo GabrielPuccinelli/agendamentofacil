@@ -14,10 +14,10 @@ export default function DashboardPage() {
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null); 
   const [isAdmin, setIsAdmin] = useState(false);
-  const [canEditProfile, setCanEditProfile] = useState(false); // Novo estado
+  const [canEditProfile, setCanEditProfile] = useState(false);
 
   useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => { 
       
       if (!session) {
         navigate('/');
@@ -29,7 +29,7 @@ export default function DashboardPage() {
       try {
         const { data: member, error: memberError } = await supabase
           .from('members')
-          .select('id, name, role, organization_id, can_edit_profile') // Puxa a nova permissão
+          .select('id, name, role, organization_id, can_edit_profile')
           .eq('user_id', user.id)
           .maybeSingle();
 
@@ -40,7 +40,7 @@ export default function DashboardPage() {
           setOrganizationId(member.organization_id);
           setMemberId(member.id);
           setIsAdmin(member.role === 'admin');
-          setCanEditProfile(member.can_edit_profile); // Armazena a permissão
+          setCanEditProfile(member.can_edit_profile);
           setLoading(false);
         } else {
           navigate('/onboarding');

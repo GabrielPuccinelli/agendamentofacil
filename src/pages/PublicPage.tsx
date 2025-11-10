@@ -14,7 +14,7 @@ type Availability = { day_of_week: number; start_time: string; end_time: string;
 
 export default function PublicPage() {
   const { organizationSlug, memberSlug } = useParams<{ organizationSlug: string, memberSlug: string }>();
-
+  
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
@@ -50,7 +50,7 @@ export default function PublicPage() {
             id,
             name,
             organization_id,
-            organizations ( name, slug )
+            organizations ( name, slug ) 
           `)
           .eq('slug', memberSlug)
           .eq('organizations.slug', organizationSlug)
@@ -71,7 +71,7 @@ export default function PublicPage() {
           .eq("member_id", memberData.id);
 
         if (servicesError) throw new Error("Erro ao buscar os serviços do profissional.");
-
+        
         const professionalServices = servicesData.map(item => item.services).filter(Boolean) as Service[];
         setServices(professionalServices);
 
