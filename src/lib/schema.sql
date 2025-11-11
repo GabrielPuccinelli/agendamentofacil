@@ -91,3 +91,28 @@ BEGIN
   RETURN organization_id;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Function to get member details by slug for admin
+CREATE
+OR REPLACE FUNCTION get_member_details_by_slug_for_admin (
+  p_member_slug TEXT,
+  p_organization_slug TEXT
+) RETURNS TABLE (
+  id UUID,
+  name TEXT,
+  organization_name TEXT
+) AS $$
+BEGIN
+RETURN QUERY
+SELECT
+  m.id,
+  u.raw_user_meta_data ->> 'name' as name,
+  o.name as organization_name
+FROM
+  members m
+  JOIN auth.users u ON m.user_id = u.id
+  JOIN organizations o ON m.organization_id = o.id
+WHERE
+  m.slug = p_member_slug AND o.slug = p_organization_slug;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
