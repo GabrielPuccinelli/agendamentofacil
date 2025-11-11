@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "npx playwright test"
   },
   "dependencies": {
     "@fullcalendar/daygrid": "^6.1.19",
@@ -27,6 +28,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.36.0",
+    "@playwright/test": "^1.56.1",
     "@types/node": "^24.6.0",
     "@types/react": "^18.3.26",
     "@types/react-dom": "^18.3.7",
