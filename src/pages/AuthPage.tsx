@@ -29,7 +29,7 @@ export default function AuthPage() {
       if (session) {
         navigate('/dashboard');
       } else {
-        navigate('/');
+        navigate('/login');
       }
     });
 

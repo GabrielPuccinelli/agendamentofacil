@@ -1,5 +1,6 @@
 // src/App.tsx
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import HomePage from './pages/HomePage' // Importar HomePage
 import AuthPage from './pages/AuthPage'
 import DashboardPage from './pages/DashboardPage'
 import OnboardingPage from './pages/OnboardingPage'
@@ -12,7 +13,8 @@ function App() {
     <BrowserRouter>
       <Routes>
         {/* Rotas de Admin */}
-        <Route path="/" element={<AuthPage />} />
+        <Route path="/" element={<HomePage />} /> {/* Rota Raiz */}
+        <Route path="/login" element={<AuthPage />} /> {/* Rota de Login */}
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route
