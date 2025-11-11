@@ -7,6 +7,7 @@ import OnboardingPage from './pages/OnboardingPage'
 import PublicPage from './pages/PublicPage'
 import OrganizationPage from './pages/OrganizationPage'
 import MemberDashboardPage from "./pages/MemberDashboardPage";
+import EditProfilePage from "./pages/EditProfilePage"; // Importar a nova página
 
 function App() {
   return (
@@ -16,6 +17,7 @@ function App() {
         <Route path="/" element={<HomePage />} /> {/* Rota Raiz */}
         <Route path="/login" element={<AuthPage />} /> {/* Rota de Login */}
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/profile/edit" element={<EditProfilePage />} /> {/* Rota de Edição de Perfil */}
         <Route path="/onboarding" element={<OnboardingPage />} />
         <Route
           path="/:organizationSlug/p/:memberSlug/dashboard"

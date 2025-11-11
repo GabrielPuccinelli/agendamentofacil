@@ -43,6 +43,12 @@ const Sidebar: React.FC<SidebarProps> = ({ userProfile, members, organizationSlu
               <span>Dashboard</span>
             </Link>
           </li>
+          <li className="mb-4">
+            <Link to="/profile/edit" className="flex items-center p-2 rounded hover:bg-gray-700">
+              <span className="mr-3">✏️</span>
+              <span>Editar Perfil</span>
+            </Link>
+          </li>
           {members.length > 0 && organizationSlug && (
             <li className="mb-4">
               <h3 className="text-xs uppercase text-gray-500 font-bold mb-2">Membros</h3>
