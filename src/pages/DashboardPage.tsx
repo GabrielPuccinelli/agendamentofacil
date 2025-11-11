@@ -6,9 +6,8 @@ import ManageServices from '../components/ManageServices';
 import ManageAvailability from '../components/ManageAvailability';
 import AgendaCalendar from '../components/AgendaCalendar';
 import ManageMembers from '../components/ManageMembers';
-import Sidebar from '../components/Sidebar'; // Importar a Sidebar
+import Sidebar from '../components/Sidebar';
 
-// Tipos para os dados da sidebar
 type UserProfile = {
   avatarUrl: string;
   name: string;
@@ -28,12 +27,9 @@ export default function DashboardPage() {
   const [memberId, setMemberId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [canEditProfile, setCanEditProfile] = useState(false);
-
-  // Estados para a Sidebar
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [membersList, setMembersList] = useState<MemberLink[]>([]);
   const [organizationSlug, setOrganizationSlug] = useState<string | null>(null);
-
 
   useEffect(() => {
     const fetchData = async () => {
@@ -43,64 +39,50 @@ export default function DashboardPage() {
         navigate('/login');
         return;
       }
-
       const user = session.user;
+      if (!user) {
+        navigate('/login');
+        return;
+      }
 
-      try {
-        // 1. Buscar o membro logado
-        const { data: member, error: memberError } = await supabase
-          .from('members')
-          .select('id, name, role, organization_id, can_edit_profile, phone, avatar_url')
-          .eq('user_id', user.id)
-          .single();
+      const { data: member, error: memberError } = await supabase
+        .from('members')
+        .select('id, name, role, organization_id, can_edit_profile, phone, avatar_url')
+        .eq('user_id', user.id)
+        .single();
 
-        if (memberError || !member) {
-          throw memberError || new Error('Membro não encontrado.');
-        }
+      if (memberError || !member) {
+        navigate('/onboarding');
+        return;
+      }
 
-        // Preenche os estados básicos e o perfil do usuário
-        setMemberId(member.id);
-        setOrganizationId(member.organization_id);
-        setIsAdmin(member.role === 'admin');
-        setCanEditProfile(member.can_edit_profile);
-        setUserProfile({
-          name: member.name,
-          phone: member.phone,
-          avatarUrl: member.avatar_url || 'https://via.placeholder.com/150',
-        });
+      setMemberId(member.id);
+      setOrganizationId(member.organization_id);
+      setIsAdmin(member.role === 'admin');
+      setCanEditProfile(member.can_edit_profile);
+      setUserProfile({
+        name: member.name,
+        phone: member.phone,
+        avatarUrl: member.avatar_url || 'https://via.placeholder.com/150',
+      });
 
-        // 2. Buscar todos os membros da organização e o slug da organização
-        const [
-          { data: allMembers, error: allMembersError },
-          { data: organization, error: orgError }
-        ] = await Promise.all([
-          supabase
-            .from('members')
-            .select('id, name, slug')
-            .eq('organization_id', member.organization_id),
-          supabase
-            .from('organizations')
-            .select('slug')
-            .eq('id', member.organization_id)
-            .single(),
-        ]);
+      const [
+        { data: allMembers, error: allMembersError },
+        { data: organization, error: orgError }
+      ] = await Promise.all([
+        supabase.from('members').select('id, name, slug').eq('organization_id', member.organization_id),
+        supabase.from('organizations').select('slug').eq('id', member.organization_id).single(),
+      ]);
 
-        if (allMembersError) throw allMembersError;
-        if (orgError) throw orgError;
-
+      if (allMembersError || orgError) {
+        // Lidar com erros de busca secundários, talvez com um feedback na UI
+        console.error("Erro ao buscar dados da organização:", allMembersError || orgError);
+      } else {
         setMembersList(allMembers || []);
         setOrganizationSlug(organization?.slug || null);
-
-      } catch (err: any) {
-        console.error("Erro no 'gatekeeper' do dashboard:", err);
-        if (err.message.includes('Membro não encontrado')) {
-          navigate('/onboarding');
-        } else {
-          navigate('/login');
-        }
-      } finally {
-        setLoading(false);
       }
+
+      setLoading(false);
     };
 
     fetchData();
@@ -110,10 +92,7 @@ export default function DashboardPage() {
         navigate('/');
       }
     });
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => subscription.unsubscribe();
   }, [navigate]);
 
   const handleLogout = async () => {
@@ -121,47 +100,29 @@ export default function DashboardPage() {
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen">
-        <h1 className="text-2xl">Carregando...</h1>
-      </div>
-    );
+    return <div className="flex justify-center items-center min-h-screen"><h1 className="text-2xl">Carregando...</h1></div>;
   }
 
   return (
     <div className="flex min-h-screen bg-gray-100">
-      <Sidebar
-        userProfile={userProfile}
-        members={membersList}
-        organizationSlug={organizationSlug}
-        onLogout={handleLogout}
-      />
+      <Sidebar userProfile={userProfile} members={membersList} organizationSlug={organizationSlug} onLogout={handleLogout} />
       <main className="flex-1 p-4 md:p-8">
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-4xl font-bold">Bem-vindo, {userProfile?.name || ''}!</h1>
         </div>
-
-        {organizationId && (
-          <AgendaCalendar organizationId={organizationId} />
-        )}
-
+        {organizationId && <AgendaCalendar organizationId={organizationId} />}
         <hr className="my-10 border-t-2" />
-
-      {isAdmin && organizationId && organizationSlug && (
+        {isAdmin && organizationId && organizationSlug && (
           <>
-          <ManageMembers organizationId={organizationId} organizationSlug={organizationSlug} />
+            <ManageMembers organizationId={organizationId} organizationSlug={organizationSlug} />
             <hr className="my-10" />
           </>
         )}
-
         {(isAdmin || canEditProfile) && memberId && (
           <>
             <ManageAvailability memberId={memberId} />
             <hr className="my-10" />
-            <ManageServices
-              memberId={memberId}
-              organizationId={isAdmin && organizationId ? organizationId : undefined}
-            />
+            <ManageServices memberId={memberId} organizationId={isAdmin && organizationId ? organizationId : undefined} />
           </>
         )}
       </main>

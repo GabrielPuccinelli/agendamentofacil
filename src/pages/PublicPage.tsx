@@ -44,33 +44,39 @@ export default function PublicPage() {
         setLoading(true);
         setError(null);
         
-        const { data: memberData, error: memberError } = await supabase
-          .from('members')
-          .select(`
-            id,
-            name,
-            organization_id,
-            organizations ( name, slug )
-          `)
-          .eq('slug', memberSlug)
-          .eq('organizations.slug', organizationSlug)
+        // Etapa 1: Encontrar a organização de forma explícita
+        const { data: orgData, error: orgError } = await supabase
+          .from('organizations')
+          .select('id, name')
+          .eq('slug', organizationSlug)
           .single();
 
-        if (memberError || !memberData) throw new Error('Profissional não encontrado. (Verifique o link)');
+        if (orgError || !orgData) throw new Error('Organização não encontrada. Verifique o link.');
 
-        const org = memberData.organizations as unknown as { name: string } | null;
-        if (!org) throw new Error("A organização deste profissional não foi encontrada.");
+        // Etapa 2: Usar o ID da organização para encontrar o membro
+        // Busca por uma lista para evitar erro com duplicatas
+        const { data: membersData, error: memberError } = await supabase
+          .from('members')
+          .select('id, name, organization_id')
+          .eq('slug', memberSlug)
+          .eq('organization_id', orgData.id)
+          .limit(1); // Pega apenas o primeiro, caso haja duplicatas
 
-        setOrganization({ id: memberData.organization_id, name: org.name });
-        setMemberId(memberData.id);
-        setMemberName(memberData.name);
+        if (memberError) throw new Error(`Erro ao buscar profissional: ${memberError.message}`);
+        if (!membersData || membersData.length === 0) throw new Error('Profissional não encontrado para esta organização.');
+
+        const member = membersData[0]; // Usa o primeiro membro encontrado
+
+        setOrganization({ id: orgData.id, name: orgData.name });
+        setMemberId(member.id);
+        setMemberName(member.name);
 
         const { data: servicesData, error: servicesError } = await supabase
           .from("member_services")
           .select("*, services(*)")
           .eq("member_id", memberData.id);
 
-        if (servicesError) throw new Error("Erro ao buscar os serviços do profissional.");
+        if (servicesError) throw new Error(`Erro ao buscar serviços: ${servicesError.message}`);
 
         const professionalServices = servicesData.map(item => item.services).filter(Boolean) as Service[];
         setServices(professionalServices);
