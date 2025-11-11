@@ -15,8 +15,10 @@ function App() {
         <Route path="/" element={<AuthPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/onboarding" element={<OnboardingPage />} />
-        <Route path="/member/:memberId/dashboard" element={<MemberDashboardPage />} />
-
+        <Route
+          path="/:organizationSlug/p/:memberSlug/dashboard"
+          element={<MemberDashboardPage />}
+        />
         {/* Rotas Públicas (ESTRUTURA CORRIGIDA) */}
 
         {/* Rota da EMPRESA (Vitrine de Profissionais) */}

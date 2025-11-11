@@ -8,20 +8,27 @@ import AgendaCalendar from "../components/AgendaCalendar";
 import type { Member } from "../types";
 
 const MemberDashboardPage = () => {
-  const { memberId } = useParams<{ memberId: string }>();
+  const { memberSlug, organizationSlug } = useParams<{
+    memberSlug: string;
+    organizationSlug: string;
+  }>();
 
   const {
     data: viewedMember,
     isLoading,
     error,
   } = useQuery(
-    ["viewedMember", memberId],
+    ["viewedMember", memberSlug, organizationSlug],
     async () => {
-      if (!memberId) throw new Error("ID de membro inválido.");
+      if (!memberSlug || !organizationSlug)
+        throw new Error("Slugs inválidos.");
 
       const { data, error } = await supabase.rpc(
-        "get_member_details_for_admin",
-        { p_member_id: memberId }
+        "get_member_details_by_slug_for_admin",
+        {
+          p_member_slug: memberSlug,
+          p_organization_slug: organizationSlug,
+        }
       );
 
       if (error) throw new Error(error.message);
@@ -30,10 +37,9 @@ const MemberDashboardPage = () => {
           "Acesso negado. Você não tem permissão para ver esta página ou o membro não existe."
         );
 
-      // A função RPC retorna um array, então pegamos o primeiro elemento
-      return data[0] as Member & { organizations: { name: string } };
+      return data[0] as Member & { organization_name: string };
     },
-    { enabled: !!memberId }
+    { enabled: !!memberSlug && !!organizationSlug }
   );
 
   if (isLoading) {
@@ -60,18 +66,18 @@ const MemberDashboardPage = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-6">
         <div>
           <h3 className="text-lg font-medium mb-4">Serviços do Funcionário</h3>
-          <ManageServices memberId={memberId!} />
+          <ManageServices memberId={viewedMember.id} />
         </div>
         <div>
           <h3 className="text-lg font-medium mb-4">
             Disponibilidade do Funcionário
           </h3>
-          <ManageAvailability memberId={memberId!} />
+          <ManageAvailability memberId={viewedMember.id} />
         </div>
       </div>
       <div className="mt-8">
         <h3 className="text-lg font-medium mb-4">Agenda do Funcionário</h3>
-        <AgendaCalendar memberId={memberId!} />
+        <AgendaCalendar memberId={viewedMember.id} />
       </div>
     </div>
   );
