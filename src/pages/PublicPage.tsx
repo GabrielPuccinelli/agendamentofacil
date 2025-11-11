@@ -74,7 +74,7 @@ export default function PublicPage() {
         const { data: servicesData, error: servicesError } = await supabase
           .from("member_services")
           .select("*, services(*)")
-          .eq("member_id", memberData.id);
+          .eq("member_id", member.id);
 
         if (servicesError) throw new Error(`Erro ao buscar serviços: ${servicesError.message}`);
 
@@ -84,7 +84,7 @@ export default function PublicPage() {
         const { data: availabilityData, error: availabilityError } = await supabase
           .from('availability')
           .select('day_of_week, start_time, end_time')
-          .eq('member_id', memberData.id);
+          .eq('member_id', member.id);
         if (availabilityError) throw new Error('Erro ao buscar horários.');
         setAvailability(availabilityData || []);
 
