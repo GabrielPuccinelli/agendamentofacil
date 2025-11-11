@@ -35,18 +35,7 @@ CREATE POLICY "Allow admin full access to organizations" ON organizations FOR AL
 );
 
 -- Policies for members
-CREATE POLICY "Allow public read access to members" ON members FOR
-SELECT
-  USING (
-    EXISTS (
-      SELECT
-        1
-      FROM
-        organizations
-      WHERE
-        organizations.id = members.organization_id
-    )
-  );
+CREATE POLICY "Allow public read access to members" ON members FOR SELECT USING (true);
 
 CREATE POLICY "Allow admin full access to members" ON members FOR ALL USING (
   get_user_role (auth.uid (), organization_id) = 'admin'
@@ -57,18 +46,7 @@ SELECT
   USING (user_id = auth.uid ());
 
 -- Policies for services
-CREATE POLICY "Allow public read access to services" ON services FOR
-SELECT
-  USING (
-    EXISTS (
-      SELECT
-        1
-      FROM
-        organizations
-      WHERE
-        organizations.id = services.organization_id
-    )
-  );
+CREATE POLICY "Allow public read access to services" ON services FOR SELECT USING (true);
 
 CREATE POLICY "Allow admin full access to services" ON services FOR ALL USING (
   get_user_role (auth.uid (), organization_id) = 'admin'

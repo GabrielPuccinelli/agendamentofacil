@@ -4,23 +4,20 @@ import { supabase } from '../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 
 export default function OnboardingPage() {
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [birthDate, setBirthDate] = useState('');
+  const [phone, setPhone] = useState('');
+  const [address, setAddress] = useState('');
+  const [memberSlug, setMemberSlug] = useState('');
   const [orgName, setOrgName] = useState('');
-  const [orgSlug, setOrgSlug] = useState(''); // Slug da Empresa
-  const [memberName, setMemberName] = useState('');
-  const [memberSlug, setMemberSlug] = useState(''); // Slug do Profissional
+  const [orgSlug, setOrgSlug] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
 
-  // Funções para formatar os slugs
-  const handleOrgSlugChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    setOrgSlug(value);
-  };
-  const handleMemberSlugChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
-    setMemberSlug(value);
-  };
+  const formatSlug = (value: string) =>
+    value.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -28,26 +25,41 @@ export default function OnboardingPage() {
     setError('');
 
     try {
-      // Chamando a nova função com os 4 parâmetros
-      const { error: rpcError } = await supabase.rpc('create_organization_and_member', {
-        org_name: orgName,
-        org_slug: orgSlug,
-        member_name: memberName,
-        member_slug: memberSlug,
-      });
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Usuário não autenticado.");
 
-      if (rpcError) {
-        if (rpcError.message.includes('duplicate key')) {
-          setError('Essa URL (slug) já está em uso. Tente outra.');
-        } else {
-          throw rpcError;
-        }
-      } else {
-        navigate('/dashboard');
-      }
+      // Etapa 1: Criar a organização (agora permitido pela nova política RLS)
+      const { data: orgData, error: orgError } = await supabase
+        .from('organizations')
+        .insert({ name: orgName, slug: orgSlug, owner_id: user.id })
+        .select('id')
+        .single();
+
+      if (orgError) throw new Error(`Erro ao criar empresa: ${orgError.message}`);
+
+      // Etapa 2: Criar o membro administrador
+      // A política "Allow admins to create members" permite esta ação
+      const { error: memberError } = await supabase
+        .from('members')
+        .insert({
+          user_id: user.id,
+          organization_id: orgData.id,
+          name: firstName,
+          last_name: lastName,
+          slug: memberSlug,
+          phone: phone,
+          birth_date: birthDate || null,
+          address: address || null,
+          role: 'admin',
+          can_edit_profile: true,
+        });
+
+      if (memberError) throw new Error(`Erro ao criar seu perfil: ${memberError.message}`);
+
+      navigate('/dashboard');
+
     } catch (err: any) {
-      console.error('Erro ao criar organização:', err);
-      setError(err.message || 'Ocorreu um erro.');
+      setError(err.message || 'Ocorreu um erro desconhecido.');
     } finally {
       setLoading(false);
     }
@@ -55,71 +67,44 @@ export default function OnboardingPage() {
 
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-100">
-      <div className="w-full max-w-lg p-8 bg-white rounded-lg shadow-xl">
-        <h2 className="text-3xl font-bold text-center mb-4">Bem-vindo!</h2>
-        <p className="text-center text-gray-600 mb-8">Vamos configurar seu negócio.</p>
+      <div className="w-full max-w-2xl p-8 bg-white rounded-lg shadow-xl my-8">
+        <h2 className="text-3xl font-bold text-center mb-2">Quase lá!</h2>
+        <p className="text-center text-gray-600 mb-8">Complete seu cadastro para começar a usar o Agendamento Fácil.</p>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* Campo Nome da Empresa */}
-          <div>
-            <label htmlFor="orgName" className="block text-sm font-medium text-gray-700">
-              Nome da Empresa
-            </label>
-            <input
-              id="orgName" type="text" required value={orgName}
-              onChange={(e) => setOrgName(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border rounded-md"
-              placeholder="Ex: Barbearia do Zé"
-            />
+        <form onSubmit={handleSubmit} className="space-y-8">
+          <div className="p-6 border rounded-lg">
+            <h3 className="text-xl font-semibold mb-4">Seus Dados Pessoais</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input type="text" placeholder="Nome" value={firstName} onChange={(e) => setFirstName(e.target.value)} required className="p-2 border rounded"/>
+              <input type="text" placeholder="Sobrenome" value={lastName} onChange={(e) => setLastName(e.target.value)} required className="p-2 border rounded"/>
+              <input type="date" placeholder="Data de Nascimento" value={birthDate} onChange={(e) => setBirthDate(e.target.value)} className="p-2 border rounded"/>
+              <input type="tel" placeholder="Telefone / WhatsApp" value={phone} onChange={(e) => setPhone(e.target.value)} required className="p-2 border rounded"/>
+              <input type="text" placeholder="Endereço (opcional)" value={address} onChange={(e) => setAddress(e.target.value)} className="md:col-span-2 p-2 border rounded"/>
+              <div className="md:col-span-2">
+                 <label htmlFor="memberSlug" className="block text-sm font-medium text-gray-700">Sua URL Pessoal</label>
+                 <div className="flex items-center">
+                   <span className="text-gray-500 p-2 bg-gray-100 border rounded-l">.../p/</span>
+                   <input id="memberSlug" type="text" placeholder="seu-nome" value={memberSlug} onChange={(e) => setMemberSlug(formatSlug(e.target.value))} required className="p-2 border rounded-r w-full"/>
+                 </div>
+              </div>
+            </div>
           </div>
-
-          {/* Campo Slug da Empresa */}
-          <div>
-            <label htmlFor="orgSlug" className="block text-sm font-medium text-gray-700">
-              URL da Empresa (ex: .../e/sua-empresa)
-            </label>
-            <input
-              id="orgSlug" type="text" required value={orgSlug}
-              onChange={handleOrgSlugChange}
-              className="mt-1 block w-full px-3 py-2 border rounded-md"
-              placeholder="Ex: barbearia-do-ze"
-            />
+          <div className="p-6 border rounded-lg">
+            <h3 className="text-xl font-semibold mb-4">Dados da Empresa</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <input type="text" placeholder="Nome da Empresa" value={orgName} onChange={(e) => setOrgName(e.target.value)} required className="md:col-span-2 p-2 border rounded"/>
+               <div>
+                 <label htmlFor="orgSlug" className="block text-sm font-medium text-gray-700">URL da Empresa</label>
+                 <div className="flex items-center">
+                   <span className="text-gray-500 p-2 bg-gray-100 border rounded-l">.../e/</span>
+                   <input id="orgSlug" type="text" placeholder="nome-da-empresa" value={orgSlug} onChange={(e) => setOrgSlug(formatSlug(e.target.value))} required className="p-2 border rounded-r w-full"/>
+                 </div>
+              </div>
+            </div>
           </div>
-
-          <hr className="my-4" />
-
-          {/* Campo Seu Nome */}
-          <div>
-            <label htmlFor="memberName" className="block text-sm font-medium text-gray-700">
-              Seu Nome (Profissional)
-            </label>
-            <input
-              id="memberName" type="text" required value={memberName}
-              onChange={(e) => setMemberName(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border rounded-md"
-              placeholder="Ex: Zé da Silva"
-            />
-          </div>
-
-          {/* Campo Slug do Profissional */}
-          <div>
-            <label htmlFor="memberSlug" className="block text-sm font-medium text-gray-700">
-              Sua URL Pessoal (ex: .../p/seu-nome)
-            </label>
-            <input
-              id="memberSlug" type="text" required value={memberSlug}
-              onChange={handleMemberSlugChange}
-              className="mt-1 block w-full px-3 py-2 border rounded-md"
-              placeholder="Ex: ze-barbeiro"
-            />
-          </div>
-
-          {error && <p className="text-sm text-red-600">{error}</p>}
-
-          <button type="submit" disabled={loading}
-            className="w-full py-2 px-4 border rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700"
-          >
-            {loading ? 'Salvando...' : 'Concluir Cadastro'}
+          {error && <p className="text-sm text-center text-red-600 p-2 bg-red-50 rounded-md">{error}</p>}
+          <button type="submit" disabled={loading} className="w-full py-3 px-4 font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400">
+            {loading ? 'Salvando...' : 'Finalizar Cadastro'}
           </button>
         </form>
       </div>
