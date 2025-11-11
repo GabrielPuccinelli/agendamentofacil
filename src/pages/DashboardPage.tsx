@@ -40,7 +40,7 @@ export default function DashboardPage() {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
       if (sessionError || !session) {
-        navigate('/');
+        navigate('/login');
         return;
       }
 
@@ -96,7 +96,7 @@ export default function DashboardPage() {
         if (err.message.includes('Membro não encontrado')) {
           navigate('/onboarding');
         } else {
-          navigate('/');
+          navigate('/login');
         }
       } finally {
         setLoading(false);
