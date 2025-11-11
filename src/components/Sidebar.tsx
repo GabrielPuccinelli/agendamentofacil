@@ -35,8 +35,8 @@ const Sidebar: React.FC<SidebarProps> = ({ userProfile, members, organizationSlu
         <p className="text-sm text-gray-400">{userProfile?.phone || ''}</p>
       </div>
 
-      <nav className="flex-grow">
-        <ul>
+      <nav className="flex flex-col flex-grow">
+        <ul className="flex-grow">
           <li className="mb-4">
             <Link to="/dashboard" className="flex items-center p-2 rounded hover:bg-gray-700">
               <span className="mr-3">🏠</span>
@@ -62,17 +62,18 @@ const Sidebar: React.FC<SidebarProps> = ({ userProfile, members, organizationSlu
             </li>
           )}
         </ul>
-      </nav>
 
-      <div>
-        <button
-          onClick={onLogout}
-          className="w-full text-left p-2 rounded hover:bg-gray-700 flex items-center"
-        >
-          <span className="mr-3">🚪</span>
-          <span>Sair</span>
-        </button>
-      </div>
+        {/* Botão Sair movido para o final da navegação */}
+        <div>
+          <button
+            onClick={onLogout}
+            className="w-full text-left p-2 rounded hover:bg-gray-700 flex items-center"
+          >
+            <span className="mr-3">🚪</span>
+            <span>Sair</span>
+          </button>
+        </div>
+      </nav>
     </aside>
   );
 };
