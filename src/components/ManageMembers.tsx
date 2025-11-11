@@ -10,14 +10,15 @@ type Member = {
   slug: string;
   role: string;
   user_id: string | null;
-  can_edit_profile: boolean; // Novo campo de permissão
+  can_edit_profile: boolean;
 };
 
 type Props = {
   organizationId: string;
+  organizationSlug: string; // Nova prop
 };
 
-export default function ManageMembers({ organizationId }: Props) {
+export default function ManageMembers({ organizationId, organizationSlug }: Props) {
   const [members, setMembers] = useState<Member[]>([]);
   const [name, setName] = useState('');
   const [slug, setSlug] = useState('');
@@ -55,8 +56,6 @@ export default function ManageMembers({ organizationId }: Props) {
   };
 
   // CREATE (Adicionar novo funcionário)
-  // Nota: Esta é uma versão simplificada. O funcionário é 'staff' e não tem
-  // um login de acesso próprio (user_id é nulo).
   const handleCreateMember = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -67,7 +66,7 @@ export default function ManageMembers({ organizationId }: Props) {
         name,
         slug,
         organization_id: organizationId,
-        role: 'staff', // Todo novo membro é 'staff'
+        role: 'staff',
       })
       .select()
       .single();
@@ -128,7 +127,6 @@ export default function ManageMembers({ organizationId }: Props) {
     <div className="mt-10">
       <h2 className="text-2xl font-bold">Gerenciar Equipe (Funcionários)</h2>
       
-      {/* Formulário de Criação (CREATE) */}
       <form onSubmit={handleCreateMember} className="mt-4 p-4 border rounded-md bg-gray-50">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-4">
           <div>
@@ -160,23 +158,22 @@ export default function ManageMembers({ organizationId }: Props) {
         {error && <p className="text-red-600 mt-2">{error}</p>}
       </form>
 
-      {/* Lista de Membros (READ / DELETE / UPDATE) */}
       <div className="mt-6 space-y-3">
         {members.map((member) => (
           <div key={member.id} className="flex justify-between items-center p-3 border rounded-md shadow-sm bg-white">
             <div className="flex-1">
               <p className="font-semibold">{member.name} ({member.role})</p>
               <p className="text-sm text-gray-600">
-                Link: /<span className="font-medium">{member.slug}</span>
+                Link Público: /e/{organizationSlug}/p/<span className="font-medium">{member.slug}</span>
               </p>
+              {/* Link Corrigido */}
               <Link
-                to={`/member/${member.id}/dashboard`}
+                to={`/${organizationSlug}/p/${member.slug}/dashboard`}
                 className="text-sm text-blue-600 hover:underline"
               >
                 Ver Dashboard do Funcionário
               </Link>
             </div>
-            {/* Controles para 'staff' */}
             {member.role === 'staff' && (
               <div className="flex items-center space-x-4">
                 <div className="flex items-center">

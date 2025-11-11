@@ -147,9 +147,9 @@ export default function DashboardPage() {
 
         <hr className="my-10 border-t-2" />
 
-        {isAdmin && organizationId && (
+      {isAdmin && organizationId && organizationSlug && (
           <>
-            <ManageMembers organizationId={organizationId} />
+          <ManageMembers organizationId={organizationId} organizationSlug={organizationSlug} />
             <hr className="my-10" />
           </>
         )}
