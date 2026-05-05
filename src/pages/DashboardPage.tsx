@@ -1,4 +1,3 @@
-// src/pages/DashboardPage.tsx
 import { supabase } from '../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
@@ -19,6 +18,14 @@ type MemberLink = {
   name: string;
   slug: string;
 };
+
+const SectionDivider = ({ title }: { title: string }) => (
+  <div className="flex items-center gap-4 my-10">
+    <div className="flex-1 h-px bg-gray-200" />
+    <span className="text-xs font-bold uppercase tracking-widest text-gray-400">{title}</span>
+    <div className="flex-1 h-px bg-gray-200" />
+  </div>
+);
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -75,8 +82,7 @@ export default function DashboardPage() {
       ]);
 
       if (allMembersError || orgError) {
-        // Lidar com erros de busca secundários, talvez com um feedback na UI
-        console.error("Erro ao buscar dados da organização:", allMembersError || orgError);
+        console.error('Erro ao buscar dados da organização:', allMembersError || orgError);
       } else {
         setMembersList(allMembers || []);
         setOrganizationSlug(organization?.slug || null);
@@ -88,9 +94,7 @@ export default function DashboardPage() {
     fetchData();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_OUT') {
-        navigate('/');
-      }
+      if (event === 'SIGNED_OUT') navigate('/');
     });
     return () => subscription.unsubscribe();
   }, [navigate]);
@@ -100,29 +104,69 @@ export default function DashboardPage() {
   };
 
   if (loading) {
-    return <div className="flex justify-center items-center min-h-screen"><h1 className="text-2xl">Carregando...</h1></div>;
+    return (
+      <div className="flex justify-center items-center min-h-screen bg-slate-950">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-10 h-10 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
+          <p className="text-indigo-400 text-sm">Carregando dashboard...</p>
+        </div>
+      </div>
+    );
   }
 
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
+
   return (
-    <div className="flex min-h-screen bg-gray-100">
-      <Sidebar userProfile={userProfile} members={membersList} organizationSlug={organizationSlug} onLogout={handleLogout} />
-      <main className="flex-1 p-4 md:p-8">
-        <div className="flex justify-between items-center mb-8">
-          <h1 className="text-4xl font-bold">Bem-vindo, {userProfile?.name || ''}!</h1>
+    <div className="flex min-h-screen bg-slate-50">
+      <Sidebar
+        userProfile={userProfile}
+        members={membersList}
+        organizationSlug={organizationSlug}
+        onLogout={handleLogout}
+      />
+      <main className="flex-1 p-6 md:p-8 overflow-auto min-w-0">
+        {/* Welcome banner */}
+        <div className="gradient-brand rounded-2xl p-6 mb-8 text-white shadow-lg shadow-indigo-500/20 relative overflow-hidden">
+          <div className="absolute -top-8 -right-8 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+          <div className="absolute -bottom-6 -left-6 w-24 h-24 bg-white/10 rounded-full blur-2xl" />
+          <div className="relative z-10">
+            <p className="text-indigo-200 text-sm font-medium">{greeting},</p>
+            <h1 className="text-2xl md:text-3xl font-bold mt-0.5">{userProfile?.name || ''}!</h1>
+            <p className="text-indigo-200 text-sm mt-2">Aqui está uma visão geral da sua agenda.</p>
+          </div>
         </div>
-        {organizationId && <AgendaCalendar organizationId={organizationId} />}
-        <hr className="my-10 border-t-2" />
+
+        {/* Calendar */}
+        {organizationId && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 mb-2">
+            <AgendaCalendar organizationId={organizationId} />
+          </div>
+        )}
+
         {isAdmin && organizationId && organizationSlug && (
           <>
-            <ManageMembers organizationId={organizationId} organizationSlug={organizationSlug} />
-            <hr className="my-10" />
+            <SectionDivider title="Gestão de Membros" />
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
+              <ManageMembers organizationId={organizationId} organizationSlug={organizationSlug} />
+            </div>
           </>
         )}
+
         {(isAdmin || canEditProfile) && memberId && (
           <>
-            <ManageAvailability memberId={memberId} />
-            <hr className="my-10" />
-            <ManageServices memberId={memberId} organizationId={isAdmin && organizationId ? organizationId : undefined} />
+            <SectionDivider title="Disponibilidade" />
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 mb-8">
+              <ManageAvailability memberId={memberId} />
+            </div>
+
+            <SectionDivider title="Serviços" />
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
+              <ManageServices
+                memberId={memberId}
+                organizationId={isAdmin && organizationId ? organizationId : undefined}
+              />
+            </div>
           </>
         )}
       </main>
