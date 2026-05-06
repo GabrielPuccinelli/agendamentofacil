@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 export type UserProfile = {
   avatarUrl: string;
@@ -64,6 +64,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   userProfile, isAdmin, organizationSlug, organizationName, onLogout,
 }) => {
   const location = useLocation();
+  const navigate = useNavigate();
 
   const NavItem = ({ to, icon, label, badge }: { to: string; icon: React.ReactNode; label: string; badge?: string }) => {
     const isActive = location.pathname === to;
@@ -157,7 +158,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
         <div className="border-t border-slate-800 pt-3 mt-3">
           <button
-            onClick={onLogout}
+            onClick={() => { onLogout(); navigate('/'); }}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-all duration-200 text-sm"
           >
             <LogoutIcon />
