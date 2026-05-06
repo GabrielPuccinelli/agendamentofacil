@@ -38,9 +38,13 @@ export default function DashboardPage() {
         .from('members')
         .select('id, name, role, organization_id, can_edit_profile, phone, avatar_url')
         .eq('user_id', user.id)
-        .single();
+        .maybeSingle();
 
-      if (memberError || !member) { navigate('/onboarding'); return; }
+      if (memberError) { navigate('/login'); return; }
+      if (!member) { navigate('/onboarding'); return; }
+
+      // Collaborator with no org yet → show waiting screen (handled below via organizationId === null)
+
 
       setMemberId(member.id);
       setOrganizationId(member.organization_id);
@@ -52,17 +56,19 @@ export default function DashboardPage() {
         avatarUrl: member.avatar_url || 'https://via.placeholder.com/150',
       });
 
-      const [
-        { data: allMembers },
-        { data: organization },
-      ] = await Promise.all([
-        supabase.from('members').select('id, name, slug').eq('organization_id', member.organization_id),
-        supabase.from('organizations').select('slug, name').eq('id', member.organization_id).single(),
-      ]);
+      if (member.organization_id) {
+        const [
+          { data: allMembers },
+          { data: organization },
+        ] = await Promise.all([
+          supabase.from('members').select('id, name, slug').eq('organization_id', member.organization_id),
+          supabase.from('organizations').select('slug, name').eq('id', member.organization_id).single(),
+        ]);
 
-      setMembersList(allMembers || []);
-      setOrganizationSlug(organization?.slug || null);
-      setOrganizationName(organization?.name || null);
+        setMembersList(allMembers || []);
+        setOrganizationSlug(organization?.slug || null);
+        setOrganizationName(organization?.name || null);
+      }
       setLoading(false);
     };
 
@@ -82,6 +88,44 @@ export default function DashboardPage() {
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
           <p className="text-indigo-400 text-sm">Carregando dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Collaborator with no organization yet
+  if (!organizationId) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-violet-950 flex items-center justify-center p-4">
+        <div className="max-w-md w-full text-center">
+          <div className="w-20 h-20 rounded-3xl gradient-brand flex items-center justify-center mx-auto mb-6 shadow-2xl shadow-indigo-500/40">
+            <svg className="w-10 h-10 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <h1 className="text-2xl font-extrabold text-white mb-3">Conta criada com sucesso!</h1>
+          <p className="text-indigo-300 mb-6 leading-relaxed">
+            Sua conta de colaborador está pronta. Agora aguarde o <strong className="text-white">gestor da empresa</strong> te adicionar à equipe usando o e-mail cadastrado.
+          </p>
+          <div className="glass rounded-2xl p-5 mb-6 text-left space-y-3">
+            <p className="text-white text-sm font-semibold mb-2">Próximos passos:</p>
+            {[
+              'O gestor vai buscar seu e-mail no sistema',
+              'Você receberá acesso ao painel com sua agenda',
+              'Seus serviços e horários serão configurados',
+            ].map((step, i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded-full gradient-brand flex items-center justify-center text-white text-xs font-bold shrink-0">{i + 1}</div>
+                <span className="text-indigo-200 text-sm">{step}</span>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={handleLogout}
+            className="text-indigo-400 hover:text-indigo-300 text-sm transition-colors"
+          >
+            Sair da conta →
+          </button>
         </div>
       </div>
     );
