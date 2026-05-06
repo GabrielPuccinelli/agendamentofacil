@@ -22,7 +22,14 @@ export default function InviteAcceptPage() {
   const [invite, setInvite] = useState<InviteInfo | null>(null);
   const [inviteError, setInviteError] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [userName, setUserName] = useState('');
+
+  // User info
+  const [userName, setUserName] = useState('');    // existing name (from member or metadata)
+  const [newName, setNewName] = useState('');       // entered by new users who have no name
+  const [isNewUser, setIsNewUser] = useState(false); // true if user just registered and has no profile
+  const [alreadyMember, setAlreadyMember] = useState(false); // already in this org
+
+  // Accept form
   const [slug, setSlug] = useState('');
   const [accepting, setAccepting] = useState(false);
   const [acceptError, setAcceptError] = useState('');
@@ -30,26 +37,10 @@ export default function InviteAcceptPage() {
 
   useEffect(() => {
     const load = async () => {
-      // Check auth
       const { data: { session } } = await supabase.auth.getSession();
       setIsLoggedIn(!!session);
 
-      if (session) {
-        // Get user name from metadata or member record
-        const { data: member } = await supabase
-          .from('members')
-          .select('name')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
-
-        const name = member?.name ||
-          session.user.user_metadata?.name ||
-          session.user.email?.split('@')[0] || '';
-        setUserName(name);
-        setSlug(formatSlug(name));
-      }
-
-      // Fetch invite info
+      // Fetch invite first so we know the org
       if (!token) { setInviteError('Link inválido.'); setLoading(false); return; }
 
       const { data, error } = await supabase
@@ -60,12 +51,54 @@ export default function InviteAcceptPage() {
 
       if (error || !data) {
         setInviteError('Convite não encontrado ou inválido.');
-      } else if (data.accepted_at) {
+        setLoading(false);
+        return;
+      }
+      if (data.accepted_at) {
         setInviteError('Este convite já foi utilizado.');
-      } else if (new Date(data.expires_at) < new Date()) {
+        setLoading(false);
+        return;
+      }
+      if (new Date(data.expires_at) < new Date()) {
         setInviteError('Este convite expirou. Peça um novo link ao gestor.');
-      } else {
-        setInvite(data as InviteInfo);
+        setLoading(false);
+        return;
+      }
+
+      setInvite(data as InviteInfo);
+
+      if (session) {
+        // Check if user is already a member of this org
+        const { data: existingMember } = await supabase
+          .from('members')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .eq('organization_id', data.organization_id)
+          .maybeSingle();
+
+        if (existingMember) {
+          setAlreadyMember(true);
+          setLoading(false);
+          return;
+        }
+
+        // Get user's name from any existing member record or auth metadata
+        const { data: anyMember } = await supabase
+          .from('members')
+          .select('name')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+
+        const name = anyMember?.name ||
+          session.user.user_metadata?.name || '';
+
+        if (!name) {
+          // Brand-new user — they need to tell us their name
+          setIsNewUser(true);
+        } else {
+          setUserName(name);
+          setSlug(formatSlug(name));
+        }
       }
 
       setLoading(false);
@@ -73,10 +106,24 @@ export default function InviteAcceptPage() {
     load();
   }, [token]);
 
+  // Keep slug in sync when newName changes (for new users)
+  const handleNewNameChange = (v: string) => {
+    setNewName(v);
+    setSlug(formatSlug(v));
+  };
+
   const handleAccept = async () => {
+    const effectiveName = isNewUser ? newName.trim() : userName;
+    if (isNewUser && !effectiveName) { setAcceptError('Por favor, informe seu nome.'); return; }
     if (!slug.trim()) { setAcceptError('Escolha um link público para seu perfil.'); return; }
+
     setAccepting(true);
     setAcceptError('');
+
+    // If new user, save their name to auth metadata first
+    if (isNewUser && effectiveName) {
+      await supabase.auth.updateUser({ data: { name: effectiveName } });
+    }
 
     const { data, error } = await supabase.rpc('accept_invite', {
       invite_token: token,
@@ -89,11 +136,12 @@ export default function InviteAcceptPage() {
 
     const result = data as { error?: string; success?: boolean };
     if (result.error === 'already_member') {
-      setAcceptError('Você já faz parte desta empresa.');
+      // Shouldn't normally reach here since we pre-check, but just in case
+      setAlreadyMember(true);
       return;
     }
     if (result.error === 'slug_taken') {
-      setAcceptError('Esse link já está em uso. Escolha outro.');
+      setAcceptError('Esse link já está em uso nesta empresa. Escolha outro.');
       return;
     }
     if (result.error) {
@@ -114,10 +162,10 @@ export default function InviteAcceptPage() {
   }
 
   const orgName = (invite?.organizations as any)?.name || 'a empresa';
+  const displayName = isNewUser ? newName : userName;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-violet-950 flex items-center justify-center p-4">
-      {/* Decorative orbs */}
       <div className="fixed top-1/4 left-[10%] w-72 h-72 bg-indigo-600/15 rounded-full blur-3xl pointer-events-none" />
       <div className="fixed bottom-1/4 right-[10%] w-64 h-64 bg-violet-600/15 rounded-full blur-3xl pointer-events-none" />
 
@@ -135,7 +183,8 @@ export default function InviteAcceptPage() {
         </div>
 
         <div className="glass rounded-3xl p-8">
-          {/* Error state */}
+
+          {/* ── Invite link/token error ── */}
           {inviteError && (
             <div className="text-center">
               <div className="w-16 h-16 rounded-2xl bg-red-500/20 flex items-center justify-center mx-auto mb-4">
@@ -143,7 +192,7 @@ export default function InviteAcceptPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h2 className="text-xl font-bold text-white mb-2">Link inválido</h2>
+              <h2 className="text-xl font-bold text-white mb-2">Convite inválido</h2>
               <p className="text-indigo-300 text-sm mb-6">{inviteError}</p>
               <Link to="/" className="text-indigo-400 hover:text-indigo-300 text-sm transition-colors">
                 ← Voltar ao início
@@ -151,7 +200,28 @@ export default function InviteAcceptPage() {
             </div>
           )}
 
-          {/* Accepted success */}
+          {/* ── User already belongs to this org ── */}
+          {alreadyMember && invite && (
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 flex items-center justify-center mx-auto mb-4">
+                <svg className="w-8 h-8 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-white mb-2">Você já é da equipe!</h2>
+              <p className="text-indigo-300 text-sm mb-6">
+                Você já faz parte da <strong className="text-white">{orgName}</strong>. Acesse seu dashboard para ver sua agenda.
+              </p>
+              <Link
+                to="/dashboard"
+                className="inline-block gradient-brand text-white font-bold py-3 px-8 rounded-2xl hover:opacity-90 transition-all"
+              >
+                Ir para o Dashboard →
+              </Link>
+            </div>
+          )}
+
+          {/* ── Accepted success ── */}
           {accepted && (
             <div className="text-center">
               <div className="w-16 h-16 rounded-2xl bg-emerald-500/20 flex items-center justify-center mx-auto mb-4">
@@ -167,10 +237,10 @@ export default function InviteAcceptPage() {
             </div>
           )}
 
-          {/* Valid invite */}
-          {invite && !accepted && (
+          {/* ── Valid invite ── */}
+          {invite && !alreadyMember && !accepted && (
             <>
-              {/* Org info */}
+              {/* Company info header */}
               <div className="text-center mb-6">
                 <div className="w-16 h-16 rounded-2xl gradient-brand flex items-center justify-center mx-auto mb-4 shadow-xl shadow-indigo-500/30">
                   <svg className="w-8 h-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -178,15 +248,13 @@ export default function InviteAcceptPage() {
                   </svg>
                 </div>
                 <h2 className="text-2xl font-extrabold text-white mb-1">Convite recebido!</h2>
-                <p className="text-indigo-300 text-sm">
-                  Você foi convidado(a) para fazer parte da equipe
-                </p>
+                <p className="text-indigo-300 text-sm">Você foi convidado(a) para a equipe</p>
                 <div className="mt-3 inline-block bg-indigo-500/20 border border-indigo-500/30 rounded-xl px-4 py-2">
                   <p className="text-white font-bold text-lg">{orgName}</p>
                 </div>
               </div>
 
-              {/* Not logged in */}
+              {/* ── Not logged in ── */}
               {!isLoggedIn && (
                 <div className="space-y-3">
                   <p className="text-indigo-300 text-sm text-center mb-4">
@@ -199,27 +267,50 @@ export default function InviteAcceptPage() {
                     Entrar na minha conta
                   </Link>
                   <Link
-                    to={`/login?redirect=/invite/${token}&mode=signup`}
+                    to={`/login?redirect=/invite/${token}`}
                     className="block w-full border border-indigo-500/30 text-indigo-300 font-semibold py-3 px-6 rounded-2xl hover:bg-white/10 transition-all text-center text-sm"
                   >
-                    Criar conta gratuitamente
+                    Criar conta — é grátis
                   </Link>
+                  <p className="text-xs text-indigo-500 text-center pt-1">
+                    Após criar sua conta, você voltará automaticamente para aceitar o convite.
+                  </p>
                 </div>
               )}
 
-              {/* Logged in — accept form */}
+              {/* ── Logged in — accept form ── */}
               {isLoggedIn && (
                 <div className="space-y-4">
-                  <div className="bg-white/10 rounded-xl p-3 flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-lg gradient-brand flex items-center justify-center text-white font-bold text-sm shrink-0">
-                      {userName.charAt(0).toUpperCase() || '?'}
+                  {/* Account chip */}
+                  {!isNewUser && (
+                    <div className="bg-white/10 rounded-xl p-3 flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg gradient-brand flex items-center justify-center text-white font-bold text-sm shrink-0">
+                        {displayName.charAt(0).toUpperCase() || '?'}
+                      </div>
+                      <div>
+                        <p className="text-white text-sm font-semibold">{displayName}</p>
+                        <p className="text-indigo-400 text-xs">Conta verificada ✓</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-white text-sm font-semibold">{userName}</p>
-                      <p className="text-indigo-400 text-xs">Conta ativa</p>
-                    </div>
-                  </div>
+                  )}
 
+                  {/* Name field — only for brand-new users */}
+                  {isNewUser && (
+                    <div>
+                      <label className="block text-sm font-medium text-slate-300 mb-1.5">
+                        Seu nome completo <span className="text-rose-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="João Silva"
+                        value={newName}
+                        onChange={(e) => handleNewNameChange(e.target.value)}
+                        className="block w-full px-4 py-3 bg-white border border-gray-200 rounded-xl text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+                      />
+                    </div>
+                  )}
+
+                  {/* Slug field */}
                   <div>
                     <label className="block text-sm font-medium text-slate-300 mb-1.5">
                       Seu link público na empresa <span className="text-rose-400">*</span>
@@ -228,7 +319,7 @@ export default function InviteAcceptPage() {
                       <span className="bg-gray-50 text-gray-400 text-xs px-3 py-3 whitespace-nowrap border-r border-gray-200">/p/</span>
                       <input
                         type="text"
-                        placeholder="seu-nome"
+                        placeholder="joao-silva"
                         value={slug}
                         onChange={(e) => setSlug(formatSlug(e.target.value))}
                         className="flex-1 px-3 py-3 text-sm outline-none text-gray-900"
@@ -237,9 +328,10 @@ export default function InviteAcceptPage() {
                     <p className="text-xs text-indigo-400 mt-1">URL que seus clientes usarão para agendar com você.</p>
                   </div>
 
+                  {/* Error */}
                   {acceptError && (
-                    <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-red-300 text-sm">
-                      <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <div className="flex items-start gap-2 bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-red-300 text-sm">
+                      <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                       </svg>
                       {acceptError}
@@ -248,13 +340,13 @@ export default function InviteAcceptPage() {
 
                   <button
                     onClick={handleAccept}
-                    disabled={accepting || !slug}
+                    disabled={accepting || !slug || (isNewUser && !newName)}
                     className="w-full gradient-brand text-white font-bold py-4 px-6 rounded-2xl hover:opacity-90 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
                   >
                     {accepting ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                        Aceitando...
+                        Entrando na equipe...
                       </>
                     ) : (
                       '✓ Aceitar convite e entrar na equipe'

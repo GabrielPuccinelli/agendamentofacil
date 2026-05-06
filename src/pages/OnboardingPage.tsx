@@ -257,7 +257,7 @@ export default function OnboardingPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
                     </svg>
                   </div>
-                  <h3 className="font-bold text-white text-lg mb-1">Tenho minha empresa</h3>
+                  <h3 className="font-bold text-white text-lg mb-1">Empresa</h3>
                   <p className="text-indigo-300 text-sm leading-relaxed">
                     Crie seu espaço, cadastre serviços e gerencie sua equipe. Você será o administrador.
                   </p>
@@ -279,7 +279,7 @@ export default function OnboardingPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                     </svg>
                   </div>
-                  <h3 className="font-bold text-white text-lg mb-1">Sou colaborador</h3>
+                  <h3 className="font-bold text-white text-lg mb-1">Usuário</h3>
                   <p className="text-indigo-300 text-sm leading-relaxed">
                     Trabalho em uma empresa existente. Crie sua conta e aguarde o gestor te adicionar.
                   </p>
