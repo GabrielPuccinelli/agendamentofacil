@@ -6,21 +6,10 @@ import ManageAvailability from '../components/ManageAvailability';
 import AgendaCalendar from '../components/AgendaCalendar';
 import ManageMembers from '../components/ManageMembers';
 import Sidebar from '../components/Sidebar';
-
-type UserProfile = {
-  avatarUrl: string;
-  name: string;
-  phone: string | null;
-};
-
-type MemberLink = {
-  id: string;
-  name: string;
-  slug: string;
-};
+import type { UserProfile, MemberLink } from '../components/Sidebar';
 
 const SectionDivider = ({ title }: { title: string }) => (
-  <div className="flex items-center gap-4 my-10">
+  <div className="flex items-center gap-4 my-8">
     <div className="flex-1 h-px bg-gray-200" />
     <span className="text-xs font-bold uppercase tracking-widest text-gray-400">{title}</span>
     <div className="flex-1 h-px bg-gray-200" />
@@ -34,23 +23,16 @@ export default function DashboardPage() {
   const [memberId, setMemberId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [canEditProfile, setCanEditProfile] = useState(false);
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile>(null);
   const [membersList, setMembersList] = useState<MemberLink[]>([]);
   const [organizationSlug, setOrganizationSlug] = useState<string | null>(null);
+  const [organizationName, setOrganizationName] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      if (sessionError || !session) {
-        navigate('/login');
-        return;
-      }
+      if (sessionError || !session) { navigate('/login'); return; }
       const user = session.user;
-      if (!user) {
-        navigate('/login');
-        return;
-      }
 
       const { data: member, error: memberError } = await supabase
         .from('members')
@@ -58,10 +40,7 @@ export default function DashboardPage() {
         .eq('user_id', user.id)
         .single();
 
-      if (memberError || !member) {
-        navigate('/onboarding');
-        return;
-      }
+      if (memberError || !member) { navigate('/onboarding'); return; }
 
       setMemberId(member.id);
       setOrganizationId(member.organization_id);
@@ -74,20 +53,16 @@ export default function DashboardPage() {
       });
 
       const [
-        { data: allMembers, error: allMembersError },
-        { data: organization, error: orgError }
+        { data: allMembers },
+        { data: organization },
       ] = await Promise.all([
         supabase.from('members').select('id, name, slug').eq('organization_id', member.organization_id),
-        supabase.from('organizations').select('slug').eq('id', member.organization_id).single(),
+        supabase.from('organizations').select('slug, name').eq('id', member.organization_id).single(),
       ]);
 
-      if (allMembersError || orgError) {
-        console.error('Erro ao buscar dados da organização:', allMembersError || orgError);
-      } else {
-        setMembersList(allMembers || []);
-        setOrganizationSlug(organization?.slug || null);
-      }
-
+      setMembersList(allMembers || []);
+      setOrganizationSlug(organization?.slug || null);
+      setOrganizationName(organization?.name || null);
       setLoading(false);
     };
 
@@ -99,9 +74,7 @@ export default function DashboardPage() {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
+  const handleLogout = async () => { await supabase.auth.signOut(); };
 
   if (loading) {
     return (
@@ -121,10 +94,13 @@ export default function DashboardPage() {
     <div className="flex min-h-screen bg-slate-50">
       <Sidebar
         userProfile={userProfile}
+        isAdmin={isAdmin}
         members={membersList}
         organizationSlug={organizationSlug}
+        organizationName={organizationName}
         onLogout={handleLogout}
       />
+
       <main className="flex-1 p-6 md:p-8 overflow-auto min-w-0">
         {/* Welcome banner */}
         <div className="gradient-brand rounded-2xl p-6 mb-8 text-white shadow-lg shadow-indigo-500/20 relative overflow-hidden">
@@ -133,17 +109,20 @@ export default function DashboardPage() {
           <div className="relative z-10">
             <p className="text-indigo-200 text-sm font-medium">{greeting},</p>
             <h1 className="text-2xl md:text-3xl font-bold mt-0.5">{userProfile?.name || ''}!</h1>
-            <p className="text-indigo-200 text-sm mt-2">Aqui está uma visão geral da sua agenda.</p>
+            <p className="text-indigo-200 text-sm mt-1">
+              {isAdmin ? 'Você está gerenciando sua empresa.' : 'Aqui está a sua agenda.'}
+            </p>
           </div>
         </div>
 
         {/* Calendar */}
         {organizationId && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 mb-2">
-            <AgendaCalendar organizationId={organizationId} />
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
+            <AgendaCalendar organizationId={organizationId} memberId={isAdmin ? undefined : memberId || undefined} />
           </div>
         )}
 
+        {/* Admin-only: team management */}
         {isAdmin && organizationId && organizationSlug && (
           <>
             <SectionDivider title="Gestão de Membros" />
@@ -153,14 +132,15 @@ export default function DashboardPage() {
           </>
         )}
 
+        {/* Availability & Services */}
         {(isAdmin || canEditProfile) && memberId && (
           <>
-            <SectionDivider title="Disponibilidade" />
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 mb-8">
+            <SectionDivider title="Minha Disponibilidade" />
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
               <ManageAvailability memberId={memberId} />
             </div>
 
-            <SectionDivider title="Serviços" />
+            <SectionDivider title="Meus Serviços" />
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
               <ManageServices
                 memberId={memberId}
