@@ -48,6 +48,11 @@ const CalendarIcon = () => (
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
   </svg>
 );
+const InviteIcon = () => (
+  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+  </svg>
+);
 const ExternalIcon = () => (
   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -138,6 +143,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                 <p className="text-xs uppercase text-slate-600 font-bold px-3 tracking-widest">Empresa</p>
               </li>
               <NavItem to="/company/dashboard" icon={<ChartIcon />} label="Painel da Empresa" badge="Analytics" />
+              <NavItem to="/company/invite" icon={<InviteIcon />} label="Convidar Membro" />
               <li className="pt-3 pb-1">
                 <p className="text-xs uppercase text-slate-600 font-bold px-3 tracking-widest">Meu Perfil</p>
               </li>

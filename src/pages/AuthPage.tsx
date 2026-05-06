@@ -16,20 +16,23 @@ export default function AuthPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Support ?redirect=/invite/xxx so invite links work after login
+  const redirectTo = new URLSearchParams(window.location.search).get('redirect') || '/dashboard';
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
-      if (session) navigate('/dashboard');
+      if (session) navigate(redirectTo);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
-      if (session) navigate('/dashboard');
+      if (session) navigate(redirectTo);
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate]);
+  }, [navigate, redirectTo]);
 
   if (loading || session) {
     return (
