@@ -12,6 +12,12 @@ type Member = {
   can_edit_price: boolean;
 };
 
+type FoundUser = {
+  found_user_id: string;
+  found_name: string;
+  found_slug: string;
+};
+
 type Props = {
   organizationId: string;
   organizationSlug: string;
@@ -41,12 +47,17 @@ const formatSlug = (v: string) =>
 
 export default function ManageMembers({ organizationId, organizationSlug }: Props) {
   const [members, setMembers] = useState<Member[]>([]);
-  const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
   const [loading, setLoading] = useState(true);
-  const [creating, setCreating] = useState(false);
-  const [showCreate, setShowCreate] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
   const [error, setError] = useState('');
+
+  // Invite-by-email state
+  const [searchEmail, setSearchEmail] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState('');
+  const [foundUser, setFoundUser] = useState<FoundUser | null>(null);
+  const [inviteSlug, setInviteSlug] = useState('');
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     const fetchMembers = async () => {
@@ -65,24 +76,68 @@ export default function ManageMembers({ organizationId, organizationSlug }: Prop
     fetchMembers();
   }, [organizationId]);
 
-  const handleCreate = async (e: React.FormEvent) => {
+  const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setCreating(true);
+    setSearchError('');
+    setFoundUser(null);
+    if (!searchEmail.trim()) return;
+    setSearching(true);
+
+    const { data, error } = await supabase.rpc('find_member_by_email', { search_email: searchEmail.trim() });
+
+    setSearching(false);
+    if (error) { setSearchError('Erro ao buscar usuário. Tente novamente.'); return; }
+    if (!data || data.length === 0) {
+      setSearchError('Nenhuma conta encontrada com este e-mail. O usuário precisa se cadastrar primeiro.');
+      return;
+    }
+
+    const user = data[0] as FoundUser;
+
+    // Check if already in this org
+    const alreadyIn = members.some((m) => m.user_id === user.found_user_id);
+    if (alreadyIn) {
+      setSearchError('Este usuário já faz parte da sua equipe.');
+      return;
+    }
+
+    setFoundUser(user);
+    setInviteSlug(formatSlug(user.found_slug || user.found_name));
+  };
+
+  const handleAdd = async () => {
+    if (!foundUser || !inviteSlug) return;
+    setAdding(true);
+    setSearchError('');
+
     const { data, error } = await supabase
       .from('members')
-      .insert({ name, slug, organization_id: organizationId, role: 'staff', can_edit_price: false })
+      .insert({
+        name: foundUser.found_name,
+        slug: inviteSlug,
+        organization_id: organizationId,
+        role: 'staff',
+        user_id: foundUser.found_user_id,
+        can_edit_price: false,
+        can_edit_profile: false,
+      })
       .select()
       .single();
 
+    setAdding(false);
     if (error) {
-      setError(error.message.includes('duplicate key') ? 'Esse link já está em uso por outro profissional.' : 'Erro ao criar membro.');
+      setSearchError(
+        error.message.includes('duplicate key')
+          ? 'Esse link já está em uso por outro profissional. Escolha outro.'
+          : 'Erro ao adicionar membro.',
+      );
     } else if (data) {
       setMembers([...members, data]);
-      setName(''); setSlug('');
-      setShowCreate(false);
+      setShowInvite(false);
+      setSearchEmail('');
+      setFoundUser(null);
+      setInviteSlug('');
     }
-    setCreating(false);
   };
 
   const handleDelete = async (memberId: string) => {
@@ -118,7 +173,7 @@ export default function ManageMembers({ organizationId, organizationSlug }: Prop
           <p className="text-sm text-gray-400 mt-0.5">Gerencie os profissionais da sua empresa</p>
         </div>
         <button
-          onClick={() => setShowCreate(!showCreate)}
+          onClick={() => { setShowInvite(!showInvite); setFoundUser(null); setSearchEmail(''); setSearchError(''); }}
           className="flex items-center gap-2 gradient-brand text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:opacity-90 transition-all shadow-md shadow-indigo-500/20"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -128,40 +183,124 @@ export default function ManageMembers({ organizationId, organizationSlug }: Prop
         </button>
       </div>
 
-      {/* Create form */}
-      {showCreate && (
-        <form onSubmit={handleCreate} className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 mb-6">
-          <h3 className="font-semibold text-indigo-800 mb-4">Novo profissional</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Nome completo *</label>
-              <input type="text" placeholder="Maria Souza" required value={name} onChange={(e) => setName(e.target.value)} className={inputCls} />
-            </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Link público *</label>
-              <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 bg-white transition-all">
-                <span className="bg-gray-50 text-gray-400 text-xs px-3 py-3 whitespace-nowrap border-r border-gray-200">/p/</span>
-                <input
-                  type="text" placeholder="maria-manicure" required
-                  value={slug} onChange={(e) => setSlug(formatSlug(e.target.value))}
-                  className="flex-1 px-3 py-3 text-sm outline-none"
-                />
+      {/* Invite by email form */}
+      {showInvite && (
+        <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 mb-6">
+          <h3 className="font-semibold text-indigo-800 mb-1">Adicionar profissional à equipe</h3>
+          <p className="text-xs text-indigo-500 mb-4">
+            O profissional precisa já ter uma conta no AgendaFácil. Busque pelo e-mail cadastrado.
+          </p>
+
+          {/* Step 1: Search by email */}
+          {!foundUser && (
+            <form onSubmit={handleSearch} className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">E-mail do profissional *</label>
+                <div className="flex gap-2">
+                  <input
+                    type="email"
+                    placeholder="profissional@email.com"
+                    required
+                    value={searchEmail}
+                    onChange={(e) => setSearchEmail(e.target.value)}
+                    className={`${inputCls} flex-1`}
+                  />
+                  <button
+                    type="submit"
+                    disabled={searching}
+                    className="px-4 py-2 text-sm font-semibold text-white gradient-brand rounded-xl hover:opacity-90 disabled:opacity-50 transition-all whitespace-nowrap"
+                  >
+                    {searching ? 'Buscando...' : 'Buscar'}
+                  </button>
+                </div>
+              </div>
+              {searchError && (
+                <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl p-3">
+                  <svg className="w-4 h-4 text-red-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-red-600 text-sm">{searchError}</p>
+                </div>
+              )}
+              <div className="flex justify-end">
+                <button type="button" onClick={() => setShowInvite(false)} className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all">
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          )}
+
+          {/* Step 2: Confirm found user */}
+          {foundUser && (
+            <div className="space-y-4">
+              {/* Found user card */}
+              <div className="flex items-center gap-3 bg-white border border-indigo-200 rounded-xl p-3">
+                <div className="w-10 h-10 rounded-xl gradient-brand flex items-center justify-center text-white font-bold text-sm shrink-0">
+                  {foundUser.found_name.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm">{foundUser.found_name}</p>
+                  <p className="text-xs text-gray-400">{searchEmail}</p>
+                </div>
+                <span className="text-xs bg-emerald-100 text-emerald-600 px-2 py-0.5 rounded-full font-medium">
+                  Conta encontrada ✓
+                </span>
+              </div>
+
+              {/* Slug field */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Link público do profissional *</label>
+                <div className="flex items-center border border-gray-200 rounded-xl overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500 bg-white transition-all">
+                  <span className="bg-gray-50 text-gray-400 text-xs px-3 py-3 whitespace-nowrap border-r border-gray-200">/p/</span>
+                  <input
+                    type="text"
+                    placeholder="nome-profissional"
+                    required
+                    value={inviteSlug}
+                    onChange={(e) => setInviteSlug(formatSlug(e.target.value))}
+                    className="flex-1 px-3 py-3 text-sm outline-none"
+                  />
+                </div>
+                <p className="text-xs text-gray-400 mt-1">Usado na URL pública de agendamento do profissional.</p>
+              </div>
+
+              {searchError && (
+                <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl p-3">
+                  <svg className="w-4 h-4 text-red-500 mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <p className="text-red-600 text-sm">{searchError}</p>
+                </div>
+              )}
+
+              <div className="flex gap-2 justify-between">
+                <button
+                  type="button"
+                  onClick={() => { setFoundUser(null); setSearchError(''); }}
+                  className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all"
+                >
+                  ← Voltar
+                </button>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setShowInvite(false)} className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all">
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAdd}
+                    disabled={adding || !inviteSlug}
+                    className="px-4 py-2 text-sm font-semibold text-white gradient-brand rounded-xl hover:opacity-90 disabled:opacity-50 transition-all"
+                  >
+                    {adding ? 'Adicionando...' : 'Confirmar'}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-          {error && <p className="text-red-600 text-sm mb-3">{error}</p>}
-          <div className="flex gap-2 justify-end">
-            <button type="button" onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all">
-              Cancelar
-            </button>
-            <button type="submit" disabled={creating} className="px-4 py-2 text-sm font-semibold text-white gradient-brand rounded-xl hover:opacity-90 disabled:opacity-50 transition-all">
-              {creating ? 'Adicionando...' : 'Adicionar'}
-            </button>
-          </div>
-        </form>
+          )}
+        </div>
       )}
 
-      {error && !showCreate && <p className="text-red-600 text-sm mb-4">{error}</p>}
+      {error && !showInvite && <p className="text-red-600 text-sm mb-4">{error}</p>}
 
       {/* Members list */}
       <div className="space-y-3">
@@ -184,7 +323,7 @@ export default function ManageMembers({ organizationId, organizationSlug }: Prop
                   </span>
                   {!member.user_id && (
                     <span className="text-xs px-1.5 py-0.5 rounded-md bg-amber-100 text-amber-600 font-medium">
-                      Sem acesso
+                      Sem conta vinculada
                     </span>
                   )}
                 </div>

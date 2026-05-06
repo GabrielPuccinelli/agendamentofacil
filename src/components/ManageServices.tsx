@@ -6,6 +6,10 @@ type Service = {
   id: string;
   name: string;
   description?: string | null;
+  category?: string | null;
+  notes?: string | null;
+  materials?: string | null;
+  commission_percent?: number | null;
   duration: number;
   price: number;
   organization_id: string;
@@ -49,6 +53,10 @@ type EditingState = {
   id: string;
   name: string;
   description: string;
+  category: string;
+  notes: string;
+  materials: string;
+  commission_percent: string;
   duration: number;
   price: number;
 };
@@ -60,6 +68,10 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
   const [showCreate, setShowCreate] = useState(false);
   const [newName, setNewName] = useState('');
   const [newDescription, setNewDescription] = useState('');
+  const [newCategory, setNewCategory] = useState('');
+  const [newNotes, setNewNotes] = useState('');
+  const [newMaterials, setNewMaterials] = useState('');
+  const [newCommission, setNewCommission] = useState('');
   const [newDuration, setNewDuration] = useState(30);
   const [newPrice, setNewPrice] = useState(0);
 
@@ -110,7 +122,17 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
       if (!organizationId) throw new Error('Apenas admins podem criar serviços.');
       const { data, error } = await supabase
         .from('services')
-        .insert({ name: newName, description: newDescription || null, duration: newDuration, price: newPrice, organization_id: organizationId })
+        .insert({
+          name: newName,
+          description: newDescription || null,
+          category: newCategory || null,
+          notes: newNotes || null,
+          materials: newMaterials || null,
+          commission_percent: newCommission ? parseFloat(newCommission) : null,
+          duration: newDuration,
+          price: newPrice,
+          organization_id: organizationId,
+        })
         .select()
         .single();
       if (error) throw new Error(error.message);
@@ -119,7 +141,8 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
     {
       onSuccess: () => {
         queryClient.invalidateQueries(['services', organizationId]);
-        setNewName(''); setNewDescription(''); setNewDuration(30); setNewPrice(0);
+        setNewName(''); setNewDescription(''); setNewCategory(''); setNewNotes('');
+        setNewMaterials(''); setNewCommission(''); setNewDuration(30); setNewPrice(0);
         setShowCreate(false);
       },
     }
@@ -127,7 +150,15 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
 
   const updateMutation = useMutation(
     async (s: EditingState) => {
-      const payload: Partial<Service> = { name: s.name, description: s.description || null, duration: s.duration };
+      const payload: Partial<Service> = {
+        name: s.name,
+        description: s.description || null,
+        category: s.category || null,
+        notes: s.notes || null,
+        materials: s.materials || null,
+        commission_percent: s.commission_percent ? parseFloat(s.commission_percent) : null,
+        duration: s.duration,
+      };
       if (canEditPrice) payload.price = s.price;
       const { error } = await supabase.from('services').update(payload).eq('id', s.id);
       if (error) throw new Error(error.message);
@@ -170,7 +201,17 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
   const isLoading = isLoadingServices || isLoadingMemberServices;
 
   const startEdit = (s: Service) =>
-    setEditing({ id: s.id, name: s.name, description: s.description || '', duration: s.duration, price: s.price });
+    setEditing({
+      id: s.id,
+      name: s.name,
+      description: s.description || '',
+      category: s.category || '',
+      notes: s.notes || '',
+      materials: s.materials || '',
+      commission_percent: s.commission_percent != null ? String(s.commission_percent) : '',
+      duration: s.duration,
+      price: s.price,
+    });
 
   const handleDelete = (id: string) => {
     if (window.confirm('Excluir este serviço? Ele será removido de todos os profissionais.')) {
@@ -210,12 +251,52 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
               <label className="block text-xs font-medium text-gray-600 mb-1">Nome do Serviço *</label>
               <input type="text" placeholder="Ex: Corte Feminino" value={newName} onChange={(e) => setNewName(e.target.value)} className={inputCls} />
             </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Categoria</label>
+              <select value={newCategory} onChange={(e) => setNewCategory(e.target.value)} className={inputCls}>
+                <option value="">Selecione...</option>
+                <option>Cabelo</option>
+                <option>Barba</option>
+                <option>Unhas</option>
+                <option>Estética Facial</option>
+                <option>Estética Corporal</option>
+                <option>Massagem</option>
+                <option>Depilação</option>
+                <option>Maquiagem</option>
+                <option>Saúde</option>
+                <option>Outro</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Comissão (%)</label>
+              <input type="number" min={0} max={100} step="0.01" placeholder="Ex: 40" value={newCommission} onChange={(e) => setNewCommission(e.target.value)} className={inputCls} />
+            </div>
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Descrição (opcional)</label>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Descrição</label>
               <textarea
-                placeholder="Descreva o serviço: o que está incluso, como é realizado, etc."
+                placeholder="Descreva o serviço: como é realizado, benefícios, etc."
                 value={newDescription}
                 onChange={(e) => setNewDescription(e.target.value)}
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Materiais / O que está incluso</label>
+              <textarea
+                placeholder="Ex: tintura, máscara hidratante, luvas descartáveis..."
+                value={newMaterials}
+                onChange={(e) => setNewMaterials(e.target.value)}
+                rows={2}
+                className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none"
+              />
+            </div>
+            <div className="sm:col-span-2">
+              <label className="block text-xs font-medium text-gray-600 mb-1">Observações</label>
+              <textarea
+                placeholder="Instruções pré ou pós-serviço, contraindicações, etc."
+                value={newNotes}
+                onChange={(e) => setNewNotes(e.target.value)}
                 rows={2}
                 className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none"
               />
@@ -295,6 +376,11 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-gray-900">{service.name}</p>
+                        {service.category && (
+                          <span className="text-xs bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full font-medium">
+                            {service.category}
+                          </span>
+                        )}
                         {isAssigned && (
                           <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-medium">
                             Meu atendimento
@@ -304,11 +390,19 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
                       {service.description && (
                         <p className="text-sm text-gray-500 mt-0.5 leading-relaxed">{service.description}</p>
                       )}
-                      <div className="flex items-center gap-3 mt-2">
+                      {service.materials && (
+                        <p className="text-xs text-gray-400 mt-0.5 leading-relaxed">
+                          <span className="font-medium">Incluso:</span> {service.materials}
+                        </p>
+                      )}
+                      <div className="flex items-center gap-3 mt-2 flex-wrap">
                         <span className="flex items-center gap-1 text-sm text-gray-400">
                           <ClockIcon /> {service.duration} min
                         </span>
                         <span className="text-sm font-bold text-emerald-600">R$ {service.price.toFixed(2)}</span>
+                        {service.commission_percent != null && (
+                          <span className="text-xs text-amber-600 font-medium">{service.commission_percent}% comissão</span>
+                        )}
                       </div>
                     </div>
 
@@ -346,11 +440,58 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
                           className={inputCls}
                         />
                       </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Categoria</label>
+                        <select
+                          value={editing!.category}
+                          onChange={(e) => setEditing((ed) => ed && { ...ed, category: e.target.value })}
+                          className={inputCls}
+                        >
+                          <option value="">Selecione...</option>
+                          <option>Cabelo</option>
+                          <option>Barba</option>
+                          <option>Unhas</option>
+                          <option>Estética Facial</option>
+                          <option>Estética Corporal</option>
+                          <option>Massagem</option>
+                          <option>Depilação</option>
+                          <option>Maquiagem</option>
+                          <option>Saúde</option>
+                          <option>Outro</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Comissão (%)</label>
+                        <input
+                          type="number" min={0} max={100} step="0.01" placeholder="Ex: 40"
+                          value={editing!.commission_percent}
+                          onChange={(e) => setEditing((ed) => ed && { ...ed, commission_percent: e.target.value })}
+                          className={inputCls}
+                        />
+                      </div>
                       <div className="sm:col-span-2">
                         <label className="block text-xs font-medium text-gray-600 mb-1">Descrição</label>
                         <textarea
                           value={editing!.description}
                           onChange={(e) => setEditing((ed) => ed && { ...ed, description: e.target.value })}
+                          rows={2}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Materiais / O que está incluso</label>
+                        <textarea
+                          value={editing!.materials}
+                          onChange={(e) => setEditing((ed) => ed && { ...ed, materials: e.target.value })}
+                          rows={2}
+                          className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none"
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-xs font-medium text-gray-600 mb-1">Observações</label>
+                        <textarea
+                          value={editing!.notes}
+                          onChange={(e) => setEditing((ed) => ed && { ...ed, notes: e.target.value })}
                           rows={2}
                           className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none"
                         />
