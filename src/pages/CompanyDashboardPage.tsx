@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import Sidebar from '../components/Sidebar';
 import type { SidebarProps } from '../components/Sidebar';
+import ManageServices from '../components/ManageServices';
+import ManageMembers from '../components/ManageMembers';
+import { QueryClient, QueryClientProvider } from 'react-query';
+
+const queryClient = new QueryClient();
 
 type Booking = {
   id: string;
@@ -81,8 +86,10 @@ const MonthBar = ({ label, value, max, revenue }: { label: string; value: number
 
 export default function CompanyDashboardPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(true);
   const [sidebarProps, setSidebarProps] = useState<Omit<SidebarProps, 'onLogout'> | null>(null);
+  const [orgId, setOrgId] = useState('');
   const [orgName, setOrgName] = useState('');
   const [orgSlug, setOrgSlug] = useState('');
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -90,7 +97,13 @@ export default function CompanyDashboardPage() {
   const [serviceStats, setServiceStats] = useState<ServiceStat[]>([]);
   const [monthData, setMonthData] = useState<MonthData[]>([]);
   const [membersMap, setMembersMap] = useState<Record<string, string>>({});
-  const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'services'>('overview');
+
+  const initialTab = location.pathname.endsWith('/services')
+    ? 'services'
+    : location.pathname.endsWith('/team')
+    ? 'team'
+    : 'overview';
+  const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'services'>(initialTab);
 
   useEffect(() => {
     const load = async () => {
@@ -175,6 +188,7 @@ export default function CompanyDashboardPage() {
       setMemberStats(Object.values(statMap).sort((a, b) => b.bookings - a.bookings));
       setServiceStats(Object.values(svcMap).sort((a, b) => b.revenue - a.revenue).slice(0, 8));
       setMonthData(months);
+      setOrgId(org?.id || '');
       setOrgName(org?.name || '');
       setOrgSlug(org?.slug || '');
 
@@ -298,7 +312,7 @@ export default function CompanyDashboardPage() {
                   : 'bg-white text-gray-500 border border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
               }`}
             >
-              {tab === 'overview' ? '📊 Visão Geral' : tab === 'team' ? '👥 Por Profissional' : '✂️ Serviços'}
+              {tab === 'overview' ? '📊 Visão Geral' : tab === 'team' ? '👥 Equipe' : '✂️ Serviços'}
             </button>
           ))}
         </div>
@@ -468,9 +482,63 @@ export default function CompanyDashboardPage() {
           </>
         )}
 
-        {/* ── Team Tab ─────────────────────────────────────────────────────── */}
-        {activeTab === 'team' && (
+        {/* ── Services Tab ─────────────────────────────────────────────────── */}
+        {activeTab === 'services' && orgId && (
+          <div className="space-y-6">
+            {/* Service CRUD */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <QueryClientProvider client={queryClient}>
+                <ManageServices
+                  memberId=""
+                  organizationId={orgId}
+                  canEditPrice={true}
+                />
+              </QueryClientProvider>
+            </div>
+
+            {/* Analytics — top services from bookings */}
+            {serviceStats.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h2 className="text-lg font-bold text-gray-900 mb-1">Desempenho por Serviço</h2>
+                <p className="text-xs text-gray-400 mb-6">Baseado em agendamentos registrados</p>
+                <div className="space-y-4">
+                  {serviceStats.map((s, i) => (
+                    <div key={s.name} className="flex items-center gap-4">
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 ${
+                        i === 0 ? 'gradient-brand' : i === 1 ? 'bg-violet-400' : 'bg-gray-300'
+                      }`}>
+                        {i + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="text-sm font-semibold text-gray-800 truncate">{s.name}</p>
+                          {s.category && (
+                            <span className="text-xs bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full shrink-0">{s.category}</span>
+                          )}
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full ${i === 0 ? 'gradient-brand' : 'bg-indigo-300'}`}
+                            style={{ width: `${(s.revenue / maxSvcRevenue) * 100}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className="text-sm font-bold text-gray-800">R$ {s.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</p>
+                        <p className="text-xs text-gray-400">{s.count}x realizado</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Team Tab ─── manage members ──────────────────────────────────── */}
+        {activeTab === 'team' && orgId && orgSlug && (
           <>
+            {/* Stats summary */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
               <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm text-center">
                 <p className="text-3xl font-extrabold gradient-text">{memberStats.length}</p>
@@ -488,11 +556,10 @@ export default function CompanyDashboardPage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-6">Desempenho por Profissional</h2>
-              {memberStats.length === 0 ? (
-                <p className="text-gray-400 text-sm text-center py-8">Nenhum dado ainda.</p>
-              ) : (
+            {/* Performance cards */}
+            {memberStats.length > 0 && (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+                <h2 className="text-lg font-bold text-gray-900 mb-6">Desempenho por Profissional</h2>
                 <div className="space-y-6">
                   {memberStats.map((m, i) => (
                     <div key={m.id} className="border border-gray-100 rounded-2xl p-4">
@@ -543,75 +610,12 @@ export default function CompanyDashboardPage() {
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
-          </>
-        )}
+              </div>
+            )}
 
-        {/* ── Services Tab ─────────────────────────────────────────────────── */}
-        {activeTab === 'services' && (
-          <>
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-1">Top Serviços por Faturamento</h2>
-              <p className="text-xs text-gray-400 mb-6">Serviços mais rentáveis da empresa</p>
-              {serviceStats.length === 0 ? (
-                <p className="text-gray-400 text-sm text-center py-8">Nenhum dado ainda.</p>
-              ) : (
-                <div className="space-y-4">
-                  {serviceStats.map((s, i) => (
-                    <div key={s.name} className="flex items-center gap-4">
-                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-white font-bold text-sm shrink-0 ${
-                        i === 0 ? 'gradient-brand' : i === 1 ? 'bg-violet-400' : 'bg-gray-300'
-                      }`}>
-                        {i + 1}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <p className="text-sm font-semibold text-gray-800 truncate">{s.name}</p>
-                          {s.category && (
-                            <span className="text-xs bg-violet-100 text-violet-600 px-1.5 py-0.5 rounded-full shrink-0">{s.category}</span>
-                          )}
-                        </div>
-                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                          <div
-                            className={`h-full rounded-full ${i === 0 ? 'gradient-brand' : 'bg-indigo-300'}`}
-                            style={{ width: `${(s.revenue / maxSvcRevenue) * 100}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <p className="text-sm font-bold text-gray-800">R$ {s.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</p>
-                        <p className="text-xs text-gray-400">{s.count}x realizado</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Services summary cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-                <p className="text-xs text-gray-500 font-medium mb-1">Serviço mais pedido</p>
-                <p className="text-lg font-bold text-gray-900 truncate">
-                  {serviceStats[0]?.name || '—'}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">{serviceStats[0]?.count || 0} atendimentos</p>
-              </div>
-              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-                <p className="text-xs text-gray-500 font-medium mb-1">Maior faturamento</p>
-                <p className="text-lg font-bold text-gray-900 truncate">
-                  {serviceStats[0]?.name || '—'}
-                </p>
-                <p className="text-xs text-emerald-600 font-medium mt-1">
-                  R$ {serviceStats[0]?.revenue.toFixed(2) || '0,00'}
-                </p>
-              </div>
-              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-                <p className="text-xs text-gray-500 font-medium mb-1">Total de serviços</p>
-                <p className="text-3xl font-extrabold gradient-text">{serviceStats.length}</p>
-                <p className="text-xs text-gray-400 mt-1">cadastrados na empresa</p>
-              </div>
+            {/* Member management */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <ManageMembers organizationId={orgId} organizationSlug={orgSlug} />
             </div>
           </>
         )}

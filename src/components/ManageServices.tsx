@@ -106,6 +106,7 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
   const { data: memberServices, isLoading: isLoadingMemberServices } = useQuery(
     ['memberServices', memberId],
     async () => {
+      if (!memberId) return new Set<string>();
       const { data, error } = await supabase
         .from('member_services')
         .select('id, service_id')
@@ -113,7 +114,7 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
       if (error) throw new Error(error.message);
       return new Set(data.map((ms) => ms.service_id));
     },
-    { enabled: !!memberId }
+    { enabled: true }
   );
 
   // ── Mutations ─────────────────────────────────────────────────────────────
@@ -353,25 +354,27 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
               <div
                 key={service.id}
                 className={`bg-white border-2 rounded-2xl overflow-hidden transition-all duration-200 ${
-                  isAssigned ? 'border-indigo-200' : 'border-gray-100'
+                  memberId && isAssigned ? 'border-indigo-200' : 'border-gray-100'
                 }`}
               >
                 {/* View mode */}
                 {!isEditing ? (
                   <div className="p-4 flex items-start gap-4">
-                    {/* Assign toggle */}
-                    <button
-                      onClick={() => toggleMutation.mutate({ serviceId: service.id, isAssigned })}
-                      disabled={toggleMutation.isLoading}
-                      className={`mt-0.5 w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-all ${
-                        isAssigned
-                          ? 'gradient-brand border-indigo-500 text-white'
-                          : 'border-gray-300 hover:border-indigo-400'
-                      }`}
-                      title={isAssigned ? 'Remover meu atendimento' : 'Adicionar ao meu atendimento'}
-                    >
-                      {isAssigned && <CheckIcon />}
-                    </button>
+                    {/* Assign toggle — only shown to members (not admin-only company view) */}
+                    {memberId && (
+                      <button
+                        onClick={() => toggleMutation.mutate({ serviceId: service.id, isAssigned })}
+                        disabled={toggleMutation.isLoading}
+                        className={`mt-0.5 w-6 h-6 rounded-lg border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                          isAssigned
+                            ? 'gradient-brand border-indigo-500 text-white'
+                            : 'border-gray-300 hover:border-indigo-400'
+                        }`}
+                        title={isAssigned ? 'Remover meu atendimento' : 'Adicionar ao meu atendimento'}
+                      >
+                        {isAssigned && <CheckIcon />}
+                      </button>
+                    )}
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -381,7 +384,7 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
                             {service.category}
                           </span>
                         )}
-                        {isAssigned && (
+                        {memberId && isAssigned && (
                           <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-0.5 rounded-full font-medium">
                             Meu atendimento
                           </span>

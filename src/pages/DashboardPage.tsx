@@ -23,6 +23,8 @@ export default function DashboardPage() {
   const [memberId, setMemberId] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [canEditProfile, setCanEditProfile] = useState(false);
+  const [canEditServices, setCanEditServices] = useState(false);
+  const [canEditPrice, setCanEditPrice] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>(null);
   const [membersList, setMembersList] = useState<MemberLink[]>([]);
   const [organizationSlug, setOrganizationSlug] = useState<string | null>(null);
@@ -36,7 +38,7 @@ export default function DashboardPage() {
 
       const { data: member, error: memberError } = await supabase
         .from('members')
-        .select('id, name, role, organization_id, can_edit_profile, phone, avatar_url')
+        .select('id, name, role, organization_id, can_edit_profile, can_edit_services, can_edit_price, phone, avatar_url')
         .eq('user_id', user.id)
         .maybeSingle();
 
@@ -50,6 +52,8 @@ export default function DashboardPage() {
       setOrganizationId(member.organization_id);
       setIsAdmin(member.role === 'admin');
       setCanEditProfile(member.can_edit_profile);
+      setCanEditServices(member.role === 'admin' ? true : (member.can_edit_services ?? false));
+      setCanEditPrice(member.role === 'admin' ? true : (member.can_edit_price ?? false));
       setUserProfile({
         name: member.name,
         phone: member.phone,
@@ -176,20 +180,50 @@ export default function DashboardPage() {
           </>
         )}
 
-        {/* Availability & Services */}
+        {/* Availability */}
         {(isAdmin || canEditProfile) && memberId && (
           <>
             <SectionDivider title="Minha Disponibilidade" />
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
               <ManageAvailability memberId={memberId} />
             </div>
+          </>
+        )}
 
+        {/* My Services — staff only if admin granted can_edit_services */}
+        {!isAdmin && canEditServices && memberId && organizationId && (
+          <>
             <SectionDivider title="Meus Serviços" />
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
               <ManageServices
                 memberId={memberId}
-                organizationId={isAdmin && organizationId ? organizationId : undefined}
+                organizationId={undefined}
+                canEditPrice={canEditPrice}
               />
+            </div>
+          </>
+        )}
+
+        {/* Admin hint to manage services */}
+        {isAdmin && (
+          <>
+            <SectionDivider title="Gerenciar Serviços" />
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl gradient-brand flex items-center justify-center shrink-0">
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <p className="font-semibold text-gray-900">Serviços da Empresa</p>
+                <p className="text-sm text-gray-400 mt-0.5">Gerencie o catálogo de serviços no Painel da Empresa.</p>
+              </div>
+              <a
+                href="/company/dashboard"
+                className="shrink-0 gradient-brand text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:opacity-90 transition-all shadow-md shadow-indigo-500/20"
+              >
+                Ir para Serviços →
+              </a>
             </div>
           </>
         )}

@@ -22,6 +22,8 @@ function App() {
         <Route path="/company/dashboard" element={<CompanyDashboardPage />} />
         <Route path="/profile/edit" element={<EditProfilePage />} />
         <Route path="/:organizationSlug/p/:memberSlug/dashboard" element={<MemberDashboardPage />} />
+        <Route path="/company/services" element={<CompanyDashboardPage />} />
+        <Route path="/company/team" element={<CompanyDashboardPage />} />
         <Route path="/company/invite" element={<InviteCreatePage />} />
         <Route path="/invite/:token" element={<InviteAcceptPage />} />
         <Route path="/e/:organizationSlug" element={<OrganizationPage />} />

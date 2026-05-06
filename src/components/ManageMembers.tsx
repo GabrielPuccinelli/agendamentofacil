@@ -10,6 +10,7 @@ type Member = {
   user_id: string | null;
   can_edit_profile: boolean;
   can_edit_price: boolean;
+  can_edit_services: boolean;
 };
 
 type FoundUser = {
@@ -64,7 +65,7 @@ export default function ManageMembers({ organizationId, organizationSlug }: Prop
       setLoading(true);
       const { data, error } = await supabase
         .from('members')
-        .select('id, name, slug, role, user_id, can_edit_profile, can_edit_price')
+        .select('id, name, slug, role, user_id, can_edit_profile, can_edit_price, can_edit_services')
         .eq('organization_id', organizationId)
         .order('role')
         .order('name');
@@ -120,6 +121,7 @@ export default function ManageMembers({ organizationId, organizationSlug }: Prop
         user_id: foundUser.found_user_id,
         can_edit_price: false,
         can_edit_profile: false,
+        can_edit_services: false,
       })
       .select()
       .single();
@@ -147,7 +149,7 @@ export default function ManageMembers({ organizationId, organizationSlug }: Prop
     else setMembers(members.filter((m) => m.id !== memberId));
   };
 
-  const toggleField = async (member: Member, field: 'can_edit_profile' | 'can_edit_price') => {
+  const toggleField = async (member: Member, field: 'can_edit_profile' | 'can_edit_price' | 'can_edit_services') => {
     const updated = !member[field];
     const { error } = await supabase.from('members').update({ [field]: updated }).eq('id', member.id);
     if (error) { setError('Não foi possível atualizar a permissão.'); return; }
@@ -352,13 +354,19 @@ export default function ManageMembers({ organizationId, organizationSlug }: Prop
                 <Toggle
                   checked={member.can_edit_profile}
                   onChange={() => toggleField(member, 'can_edit_profile')}
-                  label="Pode editar perfil"
+                  label="Editar perfil"
+                  color="indigo"
+                />
+                <Toggle
+                  checked={member.can_edit_services}
+                  onChange={() => toggleField(member, 'can_edit_services')}
+                  label="Gerenciar serviços"
                   color="indigo"
                 />
                 <Toggle
                   checked={member.can_edit_price}
                   onChange={() => toggleField(member, 'can_edit_price')}
-                  label="Pode alterar preços"
+                  label="Alterar preços"
                   color="violet"
                 />
               </div>
