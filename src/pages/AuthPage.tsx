@@ -99,6 +99,7 @@ export default function AuthPage() {
             </div>
             <Auth
               supabaseClient={supabase}
+              redirectTo={`${window.location.origin}${redirectTo}`}
               appearance={{
                 theme: ThemeSupa,
                 variables: {
