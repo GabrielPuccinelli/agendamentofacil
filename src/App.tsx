@@ -8,6 +8,8 @@ import OrganizationPage from './pages/OrganizationPage';
 import MemberDashboardPage from './pages/MemberDashboardPage';
 import EditProfilePage from './pages/EditProfilePage';
 import CompanyDashboardPage from './pages/CompanyDashboardPage';
+import InviteCreatePage from './pages/InviteCreatePage';
+import InviteAcceptPage from './pages/InviteAcceptPage';
 
 function App() {
   return (
@@ -20,6 +22,8 @@ function App() {
         <Route path="/company/dashboard" element={<CompanyDashboardPage />} />
         <Route path="/profile/edit" element={<EditProfilePage />} />
         <Route path="/:organizationSlug/p/:memberSlug/dashboard" element={<MemberDashboardPage />} />
+        <Route path="/company/invite" element={<InviteCreatePage />} />
+        <Route path="/invite/:token" element={<InviteAcceptPage />} />
         <Route path="/e/:organizationSlug" element={<OrganizationPage />} />
         <Route path="/e/:organizationSlug/p/:memberSlug" element={<PublicPage />} />
       </Routes>
