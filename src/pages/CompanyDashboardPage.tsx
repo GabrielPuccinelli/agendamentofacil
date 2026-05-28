@@ -1,13 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import Sidebar from '../components/Sidebar';
+import AppShell from '../components/AppShell';
 import type { SidebarProps } from '../components/Sidebar';
 import ManageServices from '../components/ManageServices';
 import ManageMembers from '../components/ManageMembers';
-import { QueryClient, QueryClientProvider } from 'react-query';
-
-const queryClient = new QueryClient();
 
 type Booking = {
   id: string;
@@ -256,10 +253,8 @@ export default function CompanyDashboardPage() {
     : null;
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <Sidebar {...sidebarProps} onLogout={handleLogout} />
-
-      <main className="flex-1 p-6 md:p-8 overflow-auto min-w-0">
+    <AppShell {...sidebarProps} onLogout={handleLogout}>
+      <div className="min-w-0">
         {/* Header */}
         <div className="gradient-brand rounded-2xl p-6 mb-8 text-white shadow-lg shadow-indigo-500/20 relative overflow-hidden">
           <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
@@ -485,13 +480,11 @@ export default function CompanyDashboardPage() {
           <div className="space-y-6">
             {/* Service CRUD */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <QueryClientProvider client={queryClient}>
-                <ManageServices
-                  memberId=""
-                  organizationId={orgId}
-                  canEditPrice={true}
-                />
-              </QueryClientProvider>
+              <ManageServices
+                memberId=""
+                organizationId={orgId}
+                canEditPrice={true}
+              />
             </div>
 
             {/* Analytics — top services from bookings */}
@@ -617,7 +610,7 @@ export default function CompanyDashboardPage() {
             </div>
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }

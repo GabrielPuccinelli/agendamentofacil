@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useNavigate, Link } from 'react-router-dom';
-import Sidebar from '../components/Sidebar';
+import AppShell from '../components/AppShell';
 import type { UserProfile, MemberLink } from '../components/Sidebar';
 
 type Tab = 'personal' | 'address' | 'documents';
@@ -255,18 +255,15 @@ const EditProfilePage: React.FC = () => {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <Sidebar
-        userProfile={userProfile}
-        isAdmin={isAdmin}
-        members={membersList}
-        organizationSlug={organizationSlug}
-        organizationName={organizationName}
-        onLogout={handleLogout}
-      />
-
-      <main className="flex-1 p-6 md:p-8 overflow-auto min-w-0">
-        <div className="max-w-2xl mx-auto">
+    <AppShell
+      userProfile={userProfile}
+      isAdmin={isAdmin}
+      members={membersList}
+      organizationSlug={organizationSlug}
+      organizationName={organizationName}
+      onLogout={handleLogout}
+    >
+      <div className="max-w-2xl mx-auto">
           {/* Header */}
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -441,8 +438,7 @@ const EditProfilePage: React.FC = () => {
             </div>
           </form>
         </div>
-      </main>
-    </div>
+    </AppShell>
   );
 };
 

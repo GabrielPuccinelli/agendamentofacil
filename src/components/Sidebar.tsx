@@ -1,5 +1,12 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
+import {
+  LayoutDashboard, BarChart3, Scissors, Users, UserPlus,
+  UserCog, LogOut, CalendarDays, ExternalLink,
+} from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
 
 export type UserProfile = {
   avatarUrl: string;
@@ -22,110 +29,90 @@ export type SidebarProps = {
   onLogout: () => void;
 };
 
-// ── Icons ──────────────────────────────────────────────────────────────────
-const HomeIcon = () => (
-  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
-  </svg>
-);
-const ChartIcon = () => (
-  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-  </svg>
-);
-const EditIcon = () => (
-  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-  </svg>
-);
-const LogoutIcon = () => (
-  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-  </svg>
-);
-const CalendarIcon = () => (
-  <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-  </svg>
-);
-const InviteIcon = () => (
-  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-  </svg>
-);
-const ScissorsIcon = () => (
-  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.121 14.121L19 19m-7-7l7-7-7 7-4.95-4.95-2.172 2.172A3 3 0 005 12.01V12a3 3 0 003-3 3 3 0 003 3zm0 0L9.88 9.88m4.242 4.242L19 19" />
-  </svg>
-);
-const UsersIcon = () => (
-  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-  </svg>
-);
-const ExternalIcon = () => (
-  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-  </svg>
-);
-// ────────────────────────────────────────────────────────────────────────────
+type NavItemProps = {
+  to: string;
+  icon: React.ReactNode;
+  label: string;
+  badge?: string;
+  onNavigate?: () => void;
+};
 
-const Sidebar: React.FC<SidebarProps> = ({
-  userProfile, isAdmin, organizationSlug, organizationName, onLogout,
-}) => {
+const NavItem = ({ to, icon, label, badge, onNavigate }: NavItemProps) => {
   const location = useLocation();
-  const navigate = useNavigate();
+  const isActive = location.pathname === to;
+  return (
+    <li>
+      <Link
+        to={to}
+        onClick={onNavigate}
+        className={cn(
+          'flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 group',
+          isActive
+            ? 'bg-indigo-500/15 text-indigo-300 font-medium'
+            : 'text-slate-400 hover:bg-slate-800/70 hover:text-slate-100',
+        )}
+      >
+        <span className={cn('transition-transform duration-200 group-hover:scale-110', isActive && 'text-indigo-400')}>
+          {icon}
+        </span>
+        <span className="flex-1">{label}</span>
+        {badge && (
+          <span className="text-[10px] uppercase tracking-wide bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded-md">
+            {badge}
+          </span>
+        )}
+        {isActive && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />}
+      </Link>
+    </li>
+  );
+};
 
-  const NavItem = ({ to, icon, label, badge }: { to: string; icon: React.ReactNode; label: string; badge?: string }) => {
-    const isActive = location.pathname === to;
-    return (
-      <li>
-        <Link
-          to={to}
-          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-all duration-200 ${
-            isActive
-              ? 'bg-indigo-500/20 text-indigo-300 font-medium'
-              : 'text-slate-400 hover:bg-slate-800 hover:text-slate-100'
-          }`}
-        >
-          <span className={isActive ? 'text-indigo-400' : ''}>{icon}</span>
-          <span className="flex-1">{label}</span>
-          {badge && (
-            <span className="text-xs bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded-md">{badge}</span>
-          )}
-          {isActive && <div className="w-1.5 h-1.5 rounded-full bg-indigo-400" />}
-        </Link>
-      </li>
-    );
-  };
+const SectionLabel = ({ children }: { children: React.ReactNode }) => (
+  <li className="pt-3 pb-1 first:pt-1">
+    <p className="text-[10px] uppercase text-slate-600 font-bold px-3 tracking-widest">{children}</p>
+  </li>
+);
+
+/**
+ * The inner sidebar content — reused by both the desktop aside and the mobile Sheet.
+ * `onNavigate` lets the mobile drawer close itself when a link is tapped.
+ */
+export const SidebarContent: React.FC<SidebarProps & { onNavigate?: () => void }> = ({
+  userProfile, isAdmin, organizationSlug, organizationName, onLogout, onNavigate,
+}) => {
+  const navigate = useNavigate();
+  const initials = userProfile?.name?.trim()?.charAt(0).toUpperCase() || '?';
 
   return (
-    <aside className="w-64 bg-slate-950 flex flex-col min-h-screen border-r border-slate-800 shrink-0">
+    <div className="flex h-full min-h-0 flex-col bg-slate-950">
       {/* Logo */}
-      <div className="px-4 py-4 border-b border-slate-800">
-        <Link to="/" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg gradient-brand flex items-center justify-center">
-            <CalendarIcon />
+      <div className="px-4 py-4 border-b border-slate-800/80">
+        <Link to="/" onClick={onNavigate} className="flex items-center gap-2.5 group w-fit">
+          <div className="w-8 h-8 rounded-lg gradient-brand flex items-center justify-center shadow-lg shadow-indigo-500/30 transition-transform duration-200 group-hover:scale-105">
+            <CalendarDays className="w-4 h-4 text-white" />
           </div>
-          <span className="text-white font-bold text-sm">AgendaFácil</span>
+          <span className="text-white font-bold text-sm tracking-tight">AgendaFácil</span>
         </Link>
       </div>
 
       {/* User profile */}
-      <div className="px-4 py-4 border-b border-slate-800">
+      <div className="px-4 py-4 border-b border-slate-800/80">
         <div className="flex items-center gap-3">
-          <img
-            src={userProfile?.avatarUrl || 'https://via.placeholder.com/150'}
-            alt="Avatar"
-            className="w-10 h-10 rounded-xl border-2 border-indigo-500/30 object-cover flex-shrink-0"
-          />
+          <Avatar className="h-10 w-10 rounded-xl border-2 border-indigo-500/30">
+            <AvatarImage src={userProfile?.avatarUrl || undefined} alt={userProfile?.name || 'Avatar'} className="object-cover" />
+            <AvatarFallback className="rounded-xl gradient-brand text-white font-semibold">{initials}</AvatarFallback>
+          </Avatar>
           <div className="min-w-0">
             <p className="text-white font-medium text-sm truncate">{userProfile?.name || 'Carregando...'}</p>
-            <span className={`text-xs px-1.5 py-0.5 rounded-md font-medium ${
-              isAdmin ? 'bg-violet-500/20 text-violet-300' : 'bg-slate-700 text-slate-400'
-            }`}>
+            <Badge
+              variant="secondary"
+              className={cn(
+                'mt-0.5 text-[10px] font-medium border-0',
+                isAdmin ? 'bg-violet-500/20 text-violet-300' : 'bg-slate-700 text-slate-300',
+              )}
+            >
               {isAdmin ? 'Admin' : 'Funcionário'}
-            </span>
+            </Badge>
           </div>
         </div>
 
@@ -137,7 +124,7 @@ const Sidebar: React.FC<SidebarProps> = ({
             rel="noopener noreferrer"
             className="mt-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs hover:bg-indigo-500/20 transition-all"
           >
-            <ExternalIcon />
+            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate flex-1">{organizationName || 'Página da empresa'}</span>
           </a>
         )}
@@ -146,40 +133,40 @@ const Sidebar: React.FC<SidebarProps> = ({
       {/* Navigation */}
       <nav className="flex flex-col flex-grow p-3 overflow-y-auto">
         <ul className="flex-grow space-y-1">
-
-          {/* Admin nav */}
           {isAdmin && (
             <>
-              <li className="pt-1 pb-1">
-                <p className="text-xs uppercase text-slate-600 font-bold px-3 tracking-widest">Empresa</p>
-              </li>
-              <NavItem to="/company/dashboard" icon={<ChartIcon />} label="Analytics" />
-              <NavItem to="/company/services" icon={<ScissorsIcon />} label="Serviços" />
-              <NavItem to="/company/team" icon={<UsersIcon />} label="Equipe" />
-              <NavItem to="/company/invite" icon={<InviteIcon />} label="Convidar Membro" />
-              <li className="pt-3 pb-1">
-                <p className="text-xs uppercase text-slate-600 font-bold px-3 tracking-widest">Meu Perfil</p>
-              </li>
+              <SectionLabel>Empresa</SectionLabel>
+              <NavItem to="/company/dashboard" icon={<BarChart3 className="w-5 h-5" />} label="Analytics" onNavigate={onNavigate} />
+              <NavItem to="/company/services" icon={<Scissors className="w-5 h-5" />} label="Serviços" onNavigate={onNavigate} />
+              <NavItem to="/company/team" icon={<Users className="w-5 h-5" />} label="Equipe" onNavigate={onNavigate} />
+              <NavItem to="/company/invite" icon={<UserPlus className="w-5 h-5" />} label="Convidar Membro" onNavigate={onNavigate} />
+              <SectionLabel>Meu Perfil</SectionLabel>
             </>
           )}
 
-          <NavItem to="/dashboard" icon={<HomeIcon />} label="Meu Dashboard" />
-          <NavItem to="/profile/edit" icon={<EditIcon />} label="Editar Perfil" />
-
+          <NavItem to="/dashboard" icon={<LayoutDashboard className="w-5 h-5" />} label="Meu Dashboard" onNavigate={onNavigate} />
+          <NavItem to="/profile/edit" icon={<UserCog className="w-5 h-5" />} label="Editar Perfil" onNavigate={onNavigate} />
         </ul>
 
-        <div className="border-t border-slate-800 pt-3 mt-3">
+        <div className="border-t border-slate-800/80 pt-3 mt-3">
           <button
-            onClick={() => { onLogout(); navigate('/'); }}
+            onClick={() => { onNavigate?.(); onLogout(); navigate('/'); }}
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-400 hover:bg-red-500/10 hover:text-red-400 transition-all duration-200 text-sm"
           >
-            <LogoutIcon />
+            <LogOut className="w-5 h-5" />
             <span>Sair</span>
           </button>
         </div>
       </nav>
-    </aside>
+    </div>
   );
 };
+
+/** Desktop sidebar (fixed rail). Hidden on mobile — AppShell renders the Sheet there. */
+const Sidebar: React.FC<SidebarProps> = (props) => (
+  <aside className="hidden lg:flex w-64 min-h-screen border-r border-slate-800 shrink-0">
+    <SidebarContent {...props} />
+  </aside>
+);
 
 export default Sidebar;

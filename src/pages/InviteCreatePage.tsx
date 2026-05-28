@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import Sidebar from '../components/Sidebar';
+import AppShell from '../components/AppShell';
 import type { SidebarProps } from '../components/Sidebar';
 
 type Invite = {
@@ -135,10 +135,8 @@ export default function InviteCreatePage() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <Sidebar {...sidebarProps} onLogout={handleLogout} />
-
-      <main className="flex-1 p-6 md:p-8 overflow-auto min-w-0">
+    <AppShell {...sidebarProps} onLogout={handleLogout}>
+      <div className="min-w-0">
         {/* Header */}
         <div className="gradient-brand rounded-2xl p-6 mb-8 text-white shadow-lg shadow-indigo-500/20 relative overflow-hidden">
           <div className="absolute -top-8 -right-8 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
@@ -307,7 +305,7 @@ export default function InviteCreatePage() {
             )}
           </div>
         </div>
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }
