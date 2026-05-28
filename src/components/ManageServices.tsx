@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useQuery, useMutation, useQueryClient } from 'react-query';
+import { toast } from 'sonner';
+import { ConfirmButton } from './ConfirmButton';
 
 type Service = {
   id: string;
@@ -145,6 +147,7 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
         setNewName(''); setNewDescription(''); setNewCategory(''); setNewNotes('');
         setNewMaterials(''); setNewCommission(''); setNewDuration(30); setNewPrice(0);
         setShowCreate(false);
+        toast.success('Serviço criado com sucesso!');
       },
     }
   );
@@ -168,6 +171,7 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
       onSuccess: () => {
         queryClient.invalidateQueries(['services', organizationId]);
         setEditing(null);
+        toast.success('Serviço atualizado.');
       },
     }
   );
@@ -182,7 +186,9 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
       onSuccess: () => {
         queryClient.invalidateQueries(['services', organizationId]);
         queryClient.invalidateQueries(['memberServices', memberId]);
+        toast.success('Serviço excluído.');
       },
+      onError: (e) => { toast.error((e as Error).message || 'Erro ao excluir serviço.'); },
     }
   );
 
@@ -214,11 +220,6 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
       price: s.price,
     });
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Excluir este serviço? Ele será removido de todos os profissionais.')) {
-      deleteMutation.mutate(id);
-    }
-  };
 
   const inputCls = 'w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all';
 
@@ -419,14 +420,20 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
                         >
                           <EditIcon />
                         </button>
-                        <button
-                          onClick={() => handleDelete(service.id)}
-                          disabled={deleteMutation.isLoading}
-                          className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
-                          title="Excluir"
+                        <ConfirmButton
+                          onConfirm={() => deleteMutation.mutate(service.id)}
+                          title={`Excluir "${service.name}"?`}
+                          description="O serviço será removido de todos os profissionais que o oferecem. Esta ação não pode ser desfeita."
+                          confirmText="Excluir"
                         >
-                          <TrashIcon />
-                        </button>
+                          <button
+                            disabled={deleteMutation.isLoading}
+                            className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                            title="Excluir"
+                          >
+                            <TrashIcon />
+                          </button>
+                        </ConfirmButton>
                       </div>
                     )}
                   </div>
