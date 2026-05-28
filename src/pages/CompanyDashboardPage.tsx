@@ -141,12 +141,11 @@ export default function CompanyDashboardPage() {
         .in('member_id', memberIds)
         .order('start_time', { ascending: false });
 
-      const bks = (rawBookings || []) as Booking[];
+      const bks = (rawBookings || []) as unknown as Booking[];
       setBookings(bks);
 
       // Compute stats
       const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
       const statMap: Record<string, MemberStat> = {};
       allMembers?.forEach((m) => { statMap[m.id] = { id: m.id, name: m.name, bookings: 0, revenue: 0, cancelled: 0 }; });
@@ -239,7 +238,6 @@ export default function CompanyDashboardPage() {
   const cancellationRate = bookings.length > 0 ? ((cancelledTotal / bookings.length) * 100).toFixed(0) : '0';
 
   const maxMonthBookings = Math.max(...monthData.map((m) => m.bookings), 1);
-  const maxMemberBookings = Math.max(...memberStats.map((m) => m.bookings), 1);
   const maxSvcRevenue = Math.max(...serviceStats.map((s) => s.revenue), 1);
 
   const recentBookings = bookings.slice(0, 8);

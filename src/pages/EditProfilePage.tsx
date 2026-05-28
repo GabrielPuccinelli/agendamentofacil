@@ -100,7 +100,6 @@ const EditProfilePage: React.FC = () => {
   const [state, setState] = useState('');
 
   // Sidebar data
-  const [memberId, setMemberId] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile>(null);
   const [membersList, setMembersList] = useState<MemberLink[]>([]);
@@ -122,7 +121,6 @@ const EditProfilePage: React.FC = () => {
 
       if (error || !member) { navigate('/dashboard'); return; }
 
-      setMemberId(member.id);
       setIsAdmin(member.role === 'admin');
       setName(member.name || '');
       setLastName(member.last_name || '');
