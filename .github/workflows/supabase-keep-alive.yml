@@ -1,0 +1,37 @@
+name: Supabase Keep-Alive
+
+# Mantém o projeto Supabase (plano free) ativo.
+# O free tier pausa após ~7 dias sem requisições à API; este job
+# faz um ping leve no banco todo dia para evitar a pausa.
+
+on:
+  schedule:
+    # Todo dia às 08:17 UTC (minuto "quebrado" para evitar congestão no topo da hora)
+    - cron: '17 8 * * *'
+  workflow_dispatch: {} # permite disparar manualmente pela aba Actions
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST API
+        env:
+          # A anon key é pública por design (protegida por RLS) e já consta no
+          # código-fonte. Pode ser sobrescrita por um secret do repositório.
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || 'https://yyekxiajifeyfuabdasv.supabase.co' }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inl5ZWt4aWFqaWZleWZ1YWJkYXN2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE2Njc1NDQsImV4cCI6MjA3NzI0MzU0NH0.jcaEnkdhRrheYkLCFSZXYL1PvZeWWWlloEBFjmo39EY' }}
+        run: |
+          echo "Pinging Supabase to keep the project awake..."
+          HTTP_CODE=$(curl -sS -o /tmp/body.txt -w "%{http_code}" \
+            "${SUPABASE_URL}/rest/v1/organizations?select=id&limit=1" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}")
+          echo "HTTP status: ${HTTP_CODE}"
+          cat /tmp/body.txt
+          echo ""
+          # 2xx (dados) ou 4xx por RLS ainda contam como atividade que reaviva o projeto.
+          if [ "${HTTP_CODE}" -ge 500 ]; then
+            echo "::error::Supabase respondeu ${HTTP_CODE} — possível indisponibilidade."
+            exit 1
+          fi
+          echo "Keep-alive OK."
