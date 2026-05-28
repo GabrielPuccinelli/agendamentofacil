@@ -5,7 +5,7 @@ import ManageServices from '../components/ManageServices';
 import ManageAvailability from '../components/ManageAvailability';
 import AgendaCalendar from '../components/AgendaCalendar';
 import ManageMembers from '../components/ManageMembers';
-import Sidebar from '../components/Sidebar';
+import AppShell from '../components/AppShell';
 import type { UserProfile, MemberLink } from '../components/Sidebar';
 
 const SectionDivider = ({ title }: { title: string }) => (
@@ -139,17 +139,15 @@ export default function DashboardPage() {
   const greeting = hour < 12 ? 'Bom dia' : hour < 18 ? 'Boa tarde' : 'Boa noite';
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <Sidebar
-        userProfile={userProfile}
-        isAdmin={isAdmin}
-        members={membersList}
-        organizationSlug={organizationSlug}
-        organizationName={organizationName}
-        onLogout={handleLogout}
-      />
-
-      <main className="flex-1 p-6 md:p-8 overflow-auto min-w-0">
+    <AppShell
+      userProfile={userProfile}
+      isAdmin={isAdmin}
+      members={membersList}
+      organizationSlug={organizationSlug}
+      organizationName={organizationName}
+      onLogout={handleLogout}
+    >
+      <div className="min-w-0">
         {/* Welcome banner */}
         <div className="gradient-brand rounded-2xl p-6 mb-8 text-white shadow-lg shadow-indigo-500/20 relative overflow-hidden">
           <div className="absolute -top-8 -right-8 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
@@ -227,7 +225,7 @@ export default function DashboardPage() {
             </div>
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }

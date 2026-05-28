@@ -1,6 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import { toast } from 'sonner';
+import { motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import { Loader2 } from 'lucide-react';
 
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
@@ -181,11 +185,13 @@ export default function PublicPage() {
       });
       if (insertError) throw insertError;
       setBookingSuccess(true);
+      toast.success('Agendamento confirmado!');
       setAvailableSlots((slots) => slots.filter((s) => s !== selectedSlot));
       setSelectedSlot(null);
     } catch (err: any) {
       console.error(err);
       setError('Não foi possível concluir o agendamento. Tente novamente.');
+      toast.error('Não foi possível concluir o agendamento.');
     } finally {
       setBookingLoading(false);
     }
@@ -307,7 +313,12 @@ export default function PublicPage() {
 
         {/* Step 2 - Date & Time */}
         {selectedService && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
+          >
             <StepHeader number="2" title="Escolha a Data e Horário" active />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="flex justify-center">
@@ -348,12 +359,17 @@ export default function PublicPage() {
                 )}
               </div>
             </div>
-          </div>
+          </motion.div>
         )}
 
         {/* Step 3 - Client data */}
         {selectedSlot && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+            className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6"
+          >
             <StepHeader number="3" title="Seus Dados" active />
             <form onSubmit={handleBookAppointment} className="space-y-4">
               <div>
@@ -394,22 +410,19 @@ export default function PublicPage() {
                 <p className="text-indigo-700 flex justify-between"><span>Profissional</span> <strong>{memberName}</strong></p>
               </div>
 
-              <button
+              <Button
                 type="submit"
                 disabled={bookingLoading}
-                className="w-full gradient-brand text-white font-bold py-4 px-6 rounded-2xl hover:opacity-90 transition-all duration-200 hover:shadow-lg hover:shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                className="w-full gradient-brand h-auto py-4 rounded-2xl text-base font-bold shadow-md shadow-indigo-500/20 hover:opacity-90 hover:shadow-lg hover:shadow-indigo-500/30"
               >
                 {bookingLoading ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Agendando...
-                  </>
+                  <><Loader2 className="w-4 h-4 animate-spin" /> Agendando...</>
                 ) : (
                   'Confirmar Agendamento'
                 )}
-              </button>
+              </Button>
             </form>
-          </div>
+          </motion.div>
         )}
       </div>
     </div>

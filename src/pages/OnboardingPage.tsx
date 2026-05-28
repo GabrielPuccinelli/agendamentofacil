@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useNavigate } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft, ArrowRight, Loader2, Rocket, Check } from 'lucide-react';
 
 type Step = 'role' | 'personal' | 'address' | 'company';
 type Role = 'owner' | 'staff' | null;
@@ -295,6 +298,15 @@ export default function OnboardingPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-5">
+            <AnimatePresence mode="wait">
+            <motion.div
+              key={step}
+              initial={{ opacity: 0, x: 24 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -24 }}
+              transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+              className="space-y-5"
+            >
             {/* ── Step 1: Dados Pessoais ── */}
             {step === 'personal' && (
               <>
@@ -407,6 +419,8 @@ export default function OnboardingPage() {
                 </div>
               </>
             )}
+            </motion.div>
+            </AnimatePresence>
 
             {error && (
               <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-red-300 text-sm flex items-center gap-2">
@@ -419,29 +433,29 @@ export default function OnboardingPage() {
 
             {step !== 'role' && (
               <div className="flex gap-3 pt-2">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={goBack}
-                  className="flex-1 py-3 px-4 font-semibold text-indigo-300 border border-indigo-500/30 rounded-2xl hover:bg-white/10 transition-all"
+                  className="flex-1 h-auto py-3 rounded-2xl bg-transparent text-indigo-300 border-indigo-500/30 hover:bg-white/10 hover:text-white"
                 >
-                  ← Voltar
-                </button>
-                <button
+                  <ArrowLeft className="w-4 h-4" /> Voltar
+                </Button>
+                <Button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 py-3 px-4 font-bold text-white gradient-brand rounded-2xl hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  className="flex-1 h-auto py-3 rounded-2xl gradient-brand font-bold shadow-lg shadow-indigo-500/30 hover:opacity-90"
                 >
                   {loading ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      Salvando...
-                    </>
+                    <><Loader2 className="w-4 h-4 animate-spin" /> Salvando...</>
                   ) : isLastStep ? (
-                    role === 'staff' ? '✓ Criar minha conta' : '🚀 Finalizar Cadastro'
+                    role === 'staff'
+                      ? <><Check className="w-4 h-4" /> Criar minha conta</>
+                      : <><Rocket className="w-4 h-4" /> Finalizar Cadastro</>
                   ) : (
-                    'Próximo →'
+                    <>Próximo <ArrowRight className="w-4 h-4" /></>
                   )}
-                </button>
+                </Button>
               </div>
             )}
           </form>

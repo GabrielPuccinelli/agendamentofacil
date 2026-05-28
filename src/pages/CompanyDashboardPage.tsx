@@ -1,13 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import Sidebar from '../components/Sidebar';
+import AppShell from '../components/AppShell';
 import type { SidebarProps } from '../components/Sidebar';
 import ManageServices from '../components/ManageServices';
 import ManageMembers from '../components/ManageMembers';
-import { QueryClient, QueryClientProvider } from 'react-query';
-
-const queryClient = new QueryClient();
 
 type Booking = {
   id: string;
@@ -141,12 +138,11 @@ export default function CompanyDashboardPage() {
         .in('member_id', memberIds)
         .order('start_time', { ascending: false });
 
-      const bks = (rawBookings || []) as Booking[];
+      const bks = (rawBookings || []) as unknown as Booking[];
       setBookings(bks);
 
       // Compute stats
       const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
 
       const statMap: Record<string, MemberStat> = {};
       allMembers?.forEach((m) => { statMap[m.id] = { id: m.id, name: m.name, bookings: 0, revenue: 0, cancelled: 0 }; });
@@ -239,7 +235,6 @@ export default function CompanyDashboardPage() {
   const cancellationRate = bookings.length > 0 ? ((cancelledTotal / bookings.length) * 100).toFixed(0) : '0';
 
   const maxMonthBookings = Math.max(...monthData.map((m) => m.bookings), 1);
-  const maxMemberBookings = Math.max(...memberStats.map((m) => m.bookings), 1);
   const maxSvcRevenue = Math.max(...serviceStats.map((s) => s.revenue), 1);
 
   const recentBookings = bookings.slice(0, 8);
@@ -258,10 +253,8 @@ export default function CompanyDashboardPage() {
     : null;
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
-      <Sidebar {...sidebarProps} onLogout={handleLogout} />
-
-      <main className="flex-1 p-6 md:p-8 overflow-auto min-w-0">
+    <AppShell {...sidebarProps} onLogout={handleLogout}>
+      <div className="min-w-0">
         {/* Header */}
         <div className="gradient-brand rounded-2xl p-6 mb-8 text-white shadow-lg shadow-indigo-500/20 relative overflow-hidden">
           <div className="absolute -top-10 -right-10 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
@@ -487,13 +480,11 @@ export default function CompanyDashboardPage() {
           <div className="space-y-6">
             {/* Service CRUD */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <QueryClientProvider client={queryClient}>
-                <ManageServices
-                  memberId=""
-                  organizationId={orgId}
-                  canEditPrice={true}
-                />
-              </QueryClientProvider>
+              <ManageServices
+                memberId=""
+                organizationId={orgId}
+                canEditPrice={true}
+              />
             </div>
 
             {/* Analytics — top services from bookings */}
@@ -619,7 +610,7 @@ export default function CompanyDashboardPage() {
             </div>
           </>
         )}
-      </main>
-    </div>
+      </div>
+    </AppShell>
   );
 }

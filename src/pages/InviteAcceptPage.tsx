@@ -65,7 +65,7 @@ export default function InviteAcceptPage() {
         return;
       }
 
-      setInvite(data as InviteInfo);
+      setInvite(data as unknown as InviteInfo);
 
       if (session) {
         // Check if user is already a member of this org

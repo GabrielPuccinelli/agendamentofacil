@@ -2,6 +2,9 @@ import React, { useState } from 'react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import { Link } from 'react-router-dom';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Reveal } from '../components/Reveal';
+import { Button } from '@/components/ui/button';
 
 // ── Icons ───────────────────────────────────────────────────────────────────
 const ArrowRight = () => (
@@ -173,22 +176,34 @@ const faqs = [
 const FaqItem = ({ q, a }: { q: string; a: string }) => {
   const [open, setOpen] = useState(false);
   return (
-    <div className="border border-gray-200 rounded-2xl overflow-hidden">
+    <div className={`border rounded-2xl overflow-hidden transition-colors ${open ? 'border-indigo-200 bg-white shadow-sm' : 'border-gray-200'}`}>
       <button
         onClick={() => setOpen(!open)}
         className="w-full flex items-center justify-between px-6 py-4 text-left hover:bg-gray-50 transition-colors"
+        aria-expanded={open}
       >
         <span className="font-semibold text-gray-900 text-sm pr-4">{q}</span>
         <svg
-          className={`w-5 h-5 text-gray-400 shrink-0 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+          className={`w-5 h-5 text-gray-400 shrink-0 transition-transform duration-300 ${open ? 'rotate-180 text-indigo-500' : ''}`}
           fill="none" viewBox="0 0 24 24" stroke="currentColor"
         >
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
         </svg>
       </button>
-      {open && (
-        <div className="px-6 pb-4 text-sm text-gray-500 leading-relaxed border-t border-gray-100">{a}</div>
-      )}
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            key="content"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="px-6 pb-4 text-sm text-gray-500 leading-relaxed">{a}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -308,19 +323,24 @@ const HomePage: React.FC = () => {
                 </ul>
 
                 <div className="flex flex-col sm:flex-row gap-3">
-                  <Link
-                    to="/login"
-                    className="inline-flex items-center justify-center gap-2 gradient-brand text-white font-bold py-4 px-8 rounded-2xl transition-all hover:opacity-90 hover:shadow-2xl hover:shadow-indigo-500/40 hover:-translate-y-1 text-base"
+                  <Button
+                    asChild
+                    size="lg"
+                    className="gradient-brand h-auto py-4 px-8 rounded-2xl text-base font-bold shadow-lg shadow-indigo-500/30 transition-all hover:opacity-90 hover:shadow-2xl hover:shadow-indigo-500/40 hover:-translate-y-1"
                   >
-                    Começar Gratuitamente
-                    <ArrowRight />
-                  </Link>
-                  <a
-                    href="#features"
-                    className="inline-flex items-center justify-center gap-2 glass text-white font-semibold py-4 px-8 rounded-2xl transition-all hover:bg-white/15 text-base"
+                    <Link to="/login">
+                      Começar Gratuitamente
+                      <ArrowRight />
+                    </Link>
+                  </Button>
+                  <Button
+                    asChild
+                    size="lg"
+                    variant="outline"
+                    className="glass h-auto py-4 px-8 rounded-2xl text-base font-semibold text-white border-white/20 hover:bg-white/15 hover:text-white"
                   >
-                    Ver recursos
-                  </a>
+                    <a href="#features">Ver recursos</a>
+                  </Button>
                 </div>
                 <p className="mt-4 text-indigo-400 text-sm">Sem cartão de crédito · Cancele quando quiser</p>
               </div>
@@ -372,13 +392,15 @@ const HomePage: React.FC = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {features.map((f, i) => (
-                <div key={i} className="group bg-white p-7 rounded-2xl shadow-sm border border-gray-100 card-lift hover:border-indigo-200 transition-all">
-                  <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${f.color} flex items-center justify-center text-white mb-5 shadow-lg group-hover:scale-110 transition-transform duration-300`}>
-                    {f.icon}
+                <Reveal key={i} delay={(i % 3) * 0.08}>
+                  <div className="group h-full bg-white p-7 rounded-2xl shadow-sm border border-gray-100 card-lift hover:border-indigo-200 transition-all">
+                    <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${f.color} flex items-center justify-center text-white mb-5 shadow-lg group-hover:scale-110 transition-transform duration-300`}>
+                      {f.icon}
+                    </div>
+                    <h3 className="text-lg font-bold text-gray-900 mb-2">{f.title}</h3>
+                    <p className="text-gray-500 text-sm leading-relaxed">{f.desc}</p>
                   </div>
-                  <h3 className="text-lg font-bold text-gray-900 mb-2">{f.title}</h3>
-                  <p className="text-gray-500 text-sm leading-relaxed">{f.desc}</p>
-                </div>
+                </Reveal>
               ))}
             </div>
           </div>
@@ -414,7 +436,7 @@ const HomePage: React.FC = () => {
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
               {steps.map((s, i) => (
-                <div key={i} className="relative text-center">
+                <Reveal key={i} delay={i * 0.12} className="relative text-center"><div className="relative text-center">
                   {i < steps.length - 1 && (
                     <div className="hidden md:block absolute top-8 left-[65%] w-[70%] h-px bg-gradient-to-r from-indigo-400/50 to-transparent" />
                   )}
@@ -425,6 +447,7 @@ const HomePage: React.FC = () => {
                   <h3 className="text-xl font-bold text-white mb-2">{s.title}</h3>
                   <p className="text-indigo-300 text-sm leading-relaxed">{s.desc}</p>
                 </div>
+                </Reveal>
               ))}
             </div>
           </div>
@@ -472,8 +495,9 @@ const HomePage: React.FC = () => {
               <h2 className="section-title">Quem já usa, aprova</h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-              {testimonials.map((t) => (
-                <div key={t.name} className="bg-white rounded-2xl p-7 shadow-sm border border-gray-100 card-lift flex flex-col gap-5">
+              {testimonials.map((t, i) => (
+                <Reveal key={t.name} delay={i * 0.1} className="h-full">
+                <div className="h-full bg-white rounded-2xl p-7 shadow-sm border border-gray-100 card-lift flex flex-col gap-5">
                   <div className="flex gap-0.5">
                     {[1,2,3,4,5].map((s) => (
                       <svg key={s} className="w-4 h-4 text-amber-400" fill="currentColor" viewBox="0 0 20 20">
@@ -492,6 +516,7 @@ const HomePage: React.FC = () => {
                     </div>
                   </div>
                 </div>
+                </Reveal>
               ))}
             </div>
           </div>
@@ -561,21 +586,26 @@ const HomePage: React.FC = () => {
           <div className="absolute top-0 left-1/4 w-72 h-72 bg-indigo-600/20 rounded-full blur-3xl" />
           <div className="absolute bottom-0 right-1/4 w-72 h-72 bg-violet-600/20 rounded-full blur-3xl" />
           <div className="relative z-10 container mx-auto px-4 text-center">
-            <div className="text-5xl mb-6">🚀</div>
-            <h2 className="text-4xl md:text-5xl font-extrabold text-white mb-4">
-              Pronto para começar?
-            </h2>
-            <p className="text-indigo-200 text-lg mb-10 max-w-xl mx-auto">
-              Junte-se a centenas de empresas que já automatizaram seus agendamentos e cresceram com o AgendaFácil.
-            </p>
-            <Link
-              to="/login"
-              className="inline-flex items-center gap-2 gradient-brand text-white font-bold py-5 px-12 rounded-2xl transition-all hover:opacity-90 hover:shadow-2xl hover:shadow-indigo-500/40 hover:-translate-y-1 text-lg"
-            >
-              Criar conta gratuitamente
-              <ArrowRight />
-            </Link>
-            <p className="mt-4 text-indigo-400 text-sm">Configuração em menos de 2 minutos</p>
+            <Reveal>
+              <div className="text-5xl mb-6">🚀</div>
+              <h2 className="text-4xl md:text-5xl font-extrabold text-white mb-4">
+                Pronto para começar?
+              </h2>
+              <p className="text-indigo-200 text-lg mb-10 max-w-xl mx-auto">
+                Junte-se a centenas de empresas que já automatizaram seus agendamentos e cresceram com o AgendaFácil.
+              </p>
+              <Button
+                asChild
+                size="lg"
+                className="gradient-brand h-auto py-5 px-12 rounded-2xl text-lg font-bold shadow-lg shadow-indigo-500/30 transition-all hover:opacity-90 hover:shadow-2xl hover:shadow-indigo-500/40 hover:-translate-y-1"
+              >
+                <Link to="/login">
+                  Criar conta gratuitamente
+                  <ArrowRight />
+                </Link>
+              </Button>
+              <p className="mt-4 text-indigo-400 text-sm">Configuração em menos de 2 minutos</p>
+            </Reveal>
           </div>
         </section>
       </main>

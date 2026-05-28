@@ -1,6 +1,11 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
+import { Switch } from '@/components/ui/switch';
+import { Button } from '@/components/ui/button';
+import { ConfirmButton } from './ConfirmButton';
+import { Trash2, UserPlus } from 'lucide-react';
 
 type Member = {
   id: string;
@@ -25,21 +30,13 @@ type Props = {
 };
 
 const Toggle = ({
-  checked, onChange, label, color = 'indigo',
+  checked, onChange, label,
 }: {
-  checked: boolean; onChange: () => void; label: string; color?: 'indigo' | 'violet';
+  checked: boolean; onChange: () => void; label: string;
 }) => (
   <label className="flex items-center gap-2 cursor-pointer group">
-    <div className="relative">
-      <input type="checkbox" className="sr-only" checked={checked} onChange={onChange} />
-      <div className={`w-9 h-5 rounded-full transition-all duration-200 ${
-        checked
-          ? color === 'violet' ? 'bg-violet-500' : 'bg-indigo-500'
-          : 'bg-gray-200'
-      }`} />
-      <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200 ${checked ? 'translate-x-4' : ''}`} />
-    </div>
-    <span className="text-xs text-gray-600 group-hover:text-gray-800 transition-colors">{label}</span>
+    <Switch checked={checked} onCheckedChange={onChange} />
+    <span className="text-xs text-gray-600 group-hover:text-gray-800 transition-colors select-none">{label}</span>
   </label>
 );
 
@@ -139,20 +136,21 @@ export default function ManageMembers({ organizationId, organizationSlug }: Prop
       setSearchEmail('');
       setFoundUser(null);
       setInviteSlug('');
+      toast.success(`${data.name} foi adicionado à equipe!`);
     }
   };
 
   const handleDelete = async (memberId: string) => {
-    if (!window.confirm('Remover este membro da equipe?')) return;
     const { error } = await supabase.from('members').delete().eq('id', memberId);
-    if (error) setError('Não foi possível remover o membro.');
-    else setMembers(members.filter((m) => m.id !== memberId));
+    if (error) { toast.error('Não foi possível remover o membro.'); return; }
+    setMembers(members.filter((m) => m.id !== memberId));
+    toast.success('Membro removido da equipe.');
   };
 
   const toggleField = async (member: Member, field: 'can_edit_profile' | 'can_edit_price' | 'can_edit_services') => {
     const updated = !member[field];
     const { error } = await supabase.from('members').update({ [field]: updated }).eq('id', member.id);
-    if (error) { setError('Não foi possível atualizar a permissão.'); return; }
+    if (error) { toast.error('Não foi possível atualizar a permissão.'); return; }
     setMembers(members.map((m) => m.id === member.id ? { ...m, [field]: updated } : m));
   };
 
@@ -174,15 +172,13 @@ export default function ManageMembers({ organizationId, organizationSlug }: Prop
           <h2 className="text-xl font-bold text-gray-900">Equipe</h2>
           <p className="text-sm text-gray-400 mt-0.5">Gerencie os profissionais da sua empresa</p>
         </div>
-        <button
+        <Button
           onClick={() => { setShowInvite(!showInvite); setFoundUser(null); setSearchEmail(''); setSearchError(''); }}
-          className="flex items-center gap-2 gradient-brand text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:opacity-90 transition-all shadow-md shadow-indigo-500/20"
+          className="gradient-brand shadow-md shadow-indigo-500/20"
         >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-          </svg>
+          <UserPlus className="w-4 h-4" />
           Adicionar Membro
-        </button>
+        </Button>
       </div>
 
       {/* Invite by email form */}
@@ -355,34 +351,35 @@ export default function ManageMembers({ organizationId, organizationSlug }: Prop
                   checked={member.can_edit_profile}
                   onChange={() => toggleField(member, 'can_edit_profile')}
                   label="Editar perfil"
-                  color="indigo"
                 />
                 <Toggle
                   checked={member.can_edit_services}
                   onChange={() => toggleField(member, 'can_edit_services')}
                   label="Gerenciar serviços"
-                  color="indigo"
                 />
                 <Toggle
                   checked={member.can_edit_price}
                   onChange={() => toggleField(member, 'can_edit_price')}
                   label="Alterar preços"
-                  color="violet"
                 />
               </div>
             )}
 
             {/* Delete */}
             {member.role === 'staff' && (
-              <button
-                onClick={() => handleDelete(member.id)}
-                className="shrink-0 w-8 h-8 flex items-center justify-center text-gray-300 hover:text-red-400 hover:bg-red-50 rounded-lg transition-all"
-                title="Remover membro"
+              <ConfirmButton
+                onConfirm={() => handleDelete(member.id)}
+                title={`Remover ${member.name}?`}
+                description="O profissional perderá o acesso ao painel desta empresa. Esta ação não pode ser desfeita."
+                confirmText="Remover"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                </svg>
-              </button>
+                <button
+                  className="shrink-0 w-8 h-8 flex items-center justify-center text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                  title="Remover membro"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </ConfirmButton>
             )}
           </div>
         ))}
