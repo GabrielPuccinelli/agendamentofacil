@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
 import AppShell from '../components/AppShell';
+import { ConfirmButton } from '../components/ConfirmButton';
 import type { SidebarProps } from '../components/Sidebar';
 
 type Invite = {
@@ -114,14 +116,16 @@ export default function InviteCreatePage() {
   const handleCopy = (link: string) => {
     navigator.clipboard.writeText(link).then(() => {
       setCopied(true);
+      toast.success('Link copiado para a área de transferência!');
       setTimeout(() => setCopied(false), 2000);
     });
   };
 
   const handleRevokeInvite = async (inviteId: string) => {
-    if (!window.confirm('Revogar este convite?')) return;
-    await supabase.from('member_invites').delete().eq('id', inviteId);
+    const { error } = await supabase.from('member_invites').delete().eq('id', inviteId);
+    if (error) { toast.error('Não foi possível revogar o convite.'); return; }
     setInvites(invites.filter((i) => i.id !== inviteId));
+    toast.success('Convite revogado.');
   };
 
   const handleLogout = async () => { await supabase.auth.signOut(); };
@@ -290,12 +294,18 @@ export default function InviteCreatePage() {
                           >
                             Copiar
                           </button>
-                          <button
-                            onClick={() => handleRevokeInvite(invite.id)}
-                            className="text-xs text-red-400 hover:text-red-600 font-medium px-2 py-1 rounded-lg hover:bg-red-50 transition-all"
+                          <ConfirmButton
+                            onConfirm={() => handleRevokeInvite(invite.id)}
+                            title="Revogar este convite?"
+                            description="O link deixará de funcionar imediatamente. Esta ação não pode ser desfeita."
+                            confirmText="Revogar"
                           >
-                            Revogar
-                          </button>
+                            <button
+                              className="text-xs text-red-400 hover:text-red-600 font-medium px-2 py-1 rounded-lg hover:bg-red-50 transition-all"
+                            >
+                              Revogar
+                            </button>
+                          </ConfirmButton>
                         </div>
                       )}
                     </div>
