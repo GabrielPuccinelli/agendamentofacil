@@ -40,6 +40,8 @@ export default function DashboardPage() {
         .from('members')
         .select('id, name, role, organization_id, can_edit_profile, can_edit_services, can_edit_price, phone, avatar_url')
         .eq('user_id', user.id)
+        .order('organization_id', { ascending: true, nullsFirst: false })
+        .limit(1)
         .maybeSingle();
 
       if (memberError) { navigate('/login'); return; }

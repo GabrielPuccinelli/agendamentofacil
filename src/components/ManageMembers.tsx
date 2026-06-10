@@ -108,26 +108,19 @@ export default function ManageMembers({ organizationId, organizationSlug }: Prop
     setAdding(true);
     setSearchError('');
 
-    const { data, error } = await supabase
-      .from('members')
-      .insert({
-        name: foundUser.found_name,
-        slug: inviteSlug,
-        organization_id: organizationId,
-        role: 'staff',
-        user_id: foundUser.found_user_id,
-        can_edit_price: false,
-        can_edit_profile: false,
-        can_edit_services: false,
-      })
-      .select()
-      .single();
+    const { data, error } = await supabase.rpc('add_member_to_organization', {
+      p_user_id: foundUser.found_user_id,
+      p_slug: inviteSlug,
+      p_name: foundUser.found_name,
+    });
 
     setAdding(false);
     if (error) {
       setSearchError(
-        error.message.includes('duplicate key')
+        error.message.includes('slug_taken') || error.message.includes('duplicate key')
           ? 'Esse link já está em uso por outro profissional. Escolha outro.'
+          : error.message.includes('already_member')
+          ? 'Este usuário já faz parte da sua equipe.'
           : 'Erro ao adicionar membro.',
       );
     } else if (data) {
@@ -333,7 +326,7 @@ export default function ManageMembers({ organizationId, organizationSlug }: Prop
                     Ver dashboard →
                   </Link>
                   <a
-                    href={`/e/${organizationSlug}/p/${member.slug}`}
+                    href={`/${organizationSlug}/${member.slug}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-xs text-gray-400 hover:text-gray-600 transition-colors"

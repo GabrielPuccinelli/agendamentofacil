@@ -41,8 +41,12 @@ function App() {
           <Route path="/company/team" element={<CompanyDashboardPage />} />
           <Route path="/company/invite" element={<InviteCreatePage />} />
           <Route path="/invite/:token" element={<InviteAcceptPage />} />
+          {/* Legacy public URLs (links antigos continuam funcionando) */}
           <Route path="/e/:organizationSlug" element={<OrganizationPage />} />
           <Route path="/e/:organizationSlug/p/:memberSlug" element={<PublicPage />} />
+          {/* Clean public URLs: /empresa e /empresa/funcionario */}
+          <Route path="/:organizationSlug" element={<OrganizationPage />} />
+          <Route path="/:organizationSlug/:memberSlug" element={<PublicPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>

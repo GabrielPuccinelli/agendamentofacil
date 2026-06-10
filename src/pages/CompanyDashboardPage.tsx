@@ -111,7 +111,9 @@ export default function CompanyDashboardPage() {
         .from('members')
         .select('id, name, role, organization_id, phone, avatar_url')
         .eq('user_id', session.user.id)
-        .single();
+        .order('organization_id', { ascending: true, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
 
       if (!member || member.role !== 'admin') { navigate('/dashboard'); return; }
 
@@ -272,7 +274,7 @@ export default function CompanyDashboardPage() {
             <div className="flex items-center gap-2">
               {orgSlug && (
                 <a
-                  href={`/e/${orgSlug}`}
+                  href={`/${orgSlug}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 bg-white/15 hover:bg-white/25 border border-white/20 text-white text-sm font-medium px-3 py-2 rounded-xl transition-all"

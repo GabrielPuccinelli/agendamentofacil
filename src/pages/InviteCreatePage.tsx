@@ -41,7 +41,9 @@ export default function InviteCreatePage() {
         .from('members')
         .select('id, name, role, organization_id, phone, avatar_url')
         .eq('user_id', session.user.id)
-        .single();
+        .order('organization_id', { ascending: true, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
 
       if (!member || member.role !== 'admin') { navigate('/dashboard'); return; }
 

@@ -29,7 +29,9 @@ const MemberDashboardPage = () => {
         .from('members')
         .select('name, phone, avatar_url, organization_id')
         .eq('user_id', session.user.id)
-        .single();
+        .order('organization_id', { ascending: true, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
 
       if (!admin) return;
 
