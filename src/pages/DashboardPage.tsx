@@ -5,6 +5,8 @@ import ManageServices from '../components/ManageServices';
 import ManageAvailability from '../components/ManageAvailability';
 import AgendaCalendar from '../components/AgendaCalendar';
 import ManageMembers from '../components/ManageMembers';
+import ManageTimeBlocks from '../components/ManageTimeBlocks';
+import DayOverview from '../components/DayOverview';
 import AppShell from '../components/AppShell';
 import type { UserProfile, MemberLink } from '../components/Sidebar';
 
@@ -166,11 +168,27 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Visão do dia: métricas + agenda de hoje + próximos dias */}
+        {memberId && <DayOverview memberId={memberId} />}
+
         {/* Calendar */}
         {organizationId && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
-            <AgendaCalendar organizationId={organizationId} memberId={isAdmin ? undefined : memberId || undefined} />
-          </div>
+          <>
+            <SectionDivider title="Calendário Completo" />
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
+              <AgendaCalendar organizationId={organizationId} memberId={isAdmin ? undefined : memberId || undefined} />
+            </div>
+          </>
+        )}
+
+        {/* Bloqueios de horário */}
+        {memberId && (
+          <>
+            <SectionDivider title="Bloqueios" />
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
+              <ManageTimeBlocks memberId={memberId} />
+            </div>
+          </>
         )}
 
         {/* Admin-only: team management */}

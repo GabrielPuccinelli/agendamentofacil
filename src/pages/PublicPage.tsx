@@ -128,17 +128,28 @@ export default function PublicPage() {
         setAvailableSlots([]);
         return;
       }
-      const { data: existingAppointments, error: appointmentsError } = await supabase
-        .from('bookings')
-        .select('start_time, end_time')
-        .eq('member_id', memberId)
-        .gte('start_time', `${dateStr}T00:00:00Z`)
-        .lte('end_time', `${dateStr}T23:59:59Z`);
+      const [{ data: existingAppointments, error: appointmentsError }, { data: blocks }] = await Promise.all([
+        supabase
+          .from('bookings')
+          .select('start_time, end_time')
+          .eq('member_id', memberId)
+          .neq('status', 'cancelled')
+          .gte('start_time', `${dateStr}T00:00:00Z`)
+          .lte('end_time', `${dateStr}T23:59:59Z`),
+        supabase
+          .from('time_blocks')
+          .select('start_time, end_time')
+          .eq('member_id', memberId)
+          .lte('start_time', `${dateStr}T23:59:59Z`)
+          .gte('end_time', `${dateStr}T00:00:00Z`),
+      ]);
 
       if (appointmentsError) {
         setAvailableSlots([]);
         return;
       }
+      const busy = [...(existingAppointments || []), ...(blocks || [])];
+      const now = new Date();
       const slots: string[] = [];
       const { start_time, end_time } = workHours;
       const duration = selectedService.duration;
@@ -149,12 +160,13 @@ export default function PublicPage() {
       while (currentSlotTime < endTime) {
         const slotEnd = addMinutes(currentSlotTime, duration);
         if (slotEnd > endTime) break;
-        const isOccupied = existingAppointments?.some((appt) => {
+        const isOccupied = busy.some((appt) => {
           const apptStart = new Date(appt.start_time);
           const apptEnd = new Date(appt.end_time);
           return currentSlotTime < apptEnd && slotEnd > apptStart;
         });
-        if (!isOccupied) slots.push(format(currentSlotTime, 'HH:mm'));
+        const isPast = currentSlotTime <= now;
+        if (!isOccupied && !isPast) slots.push(format(currentSlotTime, 'HH:mm'));
         currentSlotTime = slotEnd;
       }
       setAvailableSlots(slots);
