@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
@@ -43,6 +43,7 @@ export default function PublicPage() {
   const [availability, setAvailability] = useState<Availability[]>([]);
   const [memberId, setMemberId] = useState<string | null>(null);
   const [memberName, setMemberName] = useState<string>('');
+  const [memberAvatar, setMemberAvatar] = useState<string | null>(null);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
@@ -51,6 +52,8 @@ export default function PublicPage() {
   const [clientPhone, setClientPhone] = useState('');
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
+  const [manageToken, setManageToken] = useState<string | null>(null);
+  const [manageLinkCopied, setManageLinkCopied] = useState(false);
 
   // --- 1. Buscar dados iniciais ---
   useEffect(() => {
@@ -75,7 +78,7 @@ export default function PublicPage() {
 
         const { data: membersData, error: memberError } = await supabase
           .from('members')
-          .select('id, name, organization_id')
+          .select('id, name, organization_id, avatar_url')
           .eq('slug', memberSlug)
           .eq('organization_id', orgData.id)
           .limit(1);
@@ -88,6 +91,7 @@ export default function PublicPage() {
         setOrganization({ id: orgData.id, name: orgData.name });
         setMemberId(member.id);
         setMemberName(member.name);
+        setMemberAvatar(member.avatar_url || null);
 
         const { data: servicesData, error: servicesError } = await supabase
           .from('member_services')
@@ -187,19 +191,19 @@ export default function PublicPage() {
       const [startH, startM] = selectedSlot.split(':').map(Number);
       const startAt = setMinutes(setHours(selectedDate, startH), startM);
       const endAt = addMinutes(startAt, selectedService.duration);
-      const { error: insertError } = await supabase.from('bookings').insert({
+      const { data: created, error: insertError } = await supabase.from('bookings').insert({
         member_id: memberId,
         service_id: selectedService.id,
         client_name: clientName,
         client_phone: clientPhone,
         start_time: startAt.toISOString(),
         end_time: endAt.toISOString(),
-      });
+      }).select('manage_token').single();
       if (insertError) throw insertError;
+      setManageToken(created?.manage_token || null);
       setBookingSuccess(true);
       toast.success('Agendamento confirmado!');
       setAvailableSlots((slots) => slots.filter((s) => s !== selectedSlot));
-      setSelectedSlot(null);
     } catch (err: any) {
       console.error(err);
       setError('Não foi possível concluir o agendamento. Tente novamente.');
@@ -250,12 +254,39 @@ export default function PublicPage() {
             <strong>{selectedDate ? format(selectedDate, 'dd/MM/yyyy') : ''}</strong> às{' '}
             <strong>{selectedSlot}</strong> está confirmado.
           </p>
+          {manageToken && (
+            <div className="mt-6 bg-indigo-50 border border-indigo-100 rounded-2xl p-4 text-left">
+              <p className="text-xs font-semibold text-indigo-800 mb-1">Precisa cancelar ou remarcar?</p>
+              <p className="text-xs text-indigo-500 mb-3">Guarde este link — é a sua chave para gerenciar o agendamento.</p>
+              <button
+                onClick={async () => {
+                  try {
+                    await navigator.clipboard.writeText(`${window.location.origin}/agendamento/${manageToken}`);
+                    setManageLinkCopied(true);
+                    toast.success('Link copiado!');
+                    setTimeout(() => setManageLinkCopied(false), 2000);
+                  } catch { toast.error('Não foi possível copiar.'); }
+                }}
+                className="w-full bg-white border border-indigo-200 text-indigo-600 text-xs font-semibold py-2.5 px-3 rounded-xl hover:bg-indigo-100 transition-all truncate"
+              >
+                {manageLinkCopied ? '✓ Copiado!' : 'Copiar link de gerenciamento'}
+              </button>
+              <a
+                href={`/agendamento/${manageToken}`}
+                className="block text-center text-xs text-indigo-400 hover:text-indigo-600 mt-2 transition-colors"
+              >
+                Abrir agora →
+              </a>
+            </div>
+          )}
           <button
             onClick={() => {
               setBookingSuccess(false);
               setClientName('');
               setClientPhone('');
               setSelectedService(null);
+              setSelectedSlot(null);
+              setManageToken(null);
             }}
             className="mt-8 w-full gradient-brand text-white font-bold py-3 px-6 rounded-2xl hover:opacity-90 transition-all duration-200 hover:shadow-lg hover:shadow-indigo-500/30"
           >
@@ -273,10 +304,25 @@ export default function PublicPage() {
         <div className="absolute top-0 left-1/4 w-48 h-48 bg-white/10 rounded-full blur-3xl" />
         <div className="absolute bottom-0 right-1/4 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative z-10">
-          <p className="text-indigo-200 text-sm font-medium mb-1">{organization.name}</p>
-          <h1 className="text-3xl font-extrabold text-white">
-            Agendar com <span className="text-indigo-200">{memberName}</span>
-          </h1>
+          <Link
+            to={`/${organizationSlug}`}
+            className="inline-block text-indigo-200 text-sm font-medium mb-3 hover:text-white transition-colors"
+          >
+            ← {organization.name}
+          </Link>
+          {memberAvatar ? (
+            <img
+              src={memberAvatar}
+              alt={memberName}
+              className="w-20 h-20 rounded-2xl object-cover mx-auto mb-3 border-2 border-white/30 shadow-xl"
+            />
+          ) : (
+            <div className="w-20 h-20 rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center mx-auto mb-3 text-2xl font-bold text-white">
+              {memberName.split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase()).join('')}
+            </div>
+          )}
+          <h1 className="text-3xl font-extrabold text-white">{memberName}</h1>
+          <p className="text-indigo-200 text-sm mt-1">Escolha o serviço e o melhor horário para você</p>
         </div>
       </div>
 

@@ -1,9 +1,22 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
+import { MapPin, Clock, Camera, Phone, ArrowRight, Users, Scissors, Building2 } from 'lucide-react';
 
-type Organization = { id: string; name: string; slug: string; };
-type Member = { id: string; name: string; slug: string; };
+type Organization = {
+  id: string;
+  name: string;
+  slug: string;
+  logo_url: string | null;
+  cover_url: string | null;
+  description: string | null;
+  whatsapp: string | null;
+  address: string | null;
+  opening_hours: string | null;
+  instagram: string | null;
+};
+type Member = { id: string; name: string; slug: string; avatar_url: string | null };
+type Service = { id: string; name: string; price: number; duration: number; category: string | null };
 
 const Spinner = () => (
   <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-violet-950">
@@ -15,11 +28,7 @@ const Spinner = () => (
 );
 
 const getInitials = (name: string) =>
-  name
-    .split(' ')
-    .slice(0, 2)
-    .map((w) => w[0]?.toUpperCase())
-    .join('');
+  name.split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase()).join('');
 
 const gradients = [
   'from-indigo-500 to-blue-500',
@@ -36,6 +45,8 @@ export default function OrganizationPage() {
   const [error, setError] = useState<string | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
   const [members, setMembers] = useState<Member[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [specialties, setSpecialties] = useState<Record<string, string[]>>({});
 
   useEffect(() => {
     if (!organizationSlug) {
@@ -51,22 +62,36 @@ export default function OrganizationPage() {
 
         const { data: orgData, error: orgError } = await supabase
           .from('organizations')
-          .select('id, name, slug')
+          .select('id, name, slug, logo_url, cover_url, description, whatsapp, address, opening_hours, instagram')
           .eq('slug', organizationSlug)
           .single();
 
         if (orgError || !orgData) throw new Error('Empresa não encontrada ou indisponível. Verifique o link ou tente novamente mais tarde.');
-
         setOrganization(orgData);
 
-        const { data: membersData, error: membersError } = await supabase
-          .from('members')
-          .select('id, name, slug')
-          .eq('organization_id', orgData.id);
+        const [{ data: membersData, error: membersError }, { data: servicesData }] = await Promise.all([
+          supabase.from('members').select('id, name, slug, avatar_url').eq('organization_id', orgData.id),
+          supabase.from('services').select('id, name, price, duration, category').eq('organization_id', orgData.id).order('name'),
+        ]);
 
         if (membersError) throw new Error('Não foi possível carregar os profissionais desta empresa.');
-
         setMembers(membersData || []);
+        setServices(servicesData || []);
+
+        // Especialidades: serviços atribuídos a cada profissional
+        const memberIds = (membersData || []).map((m) => m.id);
+        if (memberIds.length > 0) {
+          const { data: ms } = await supabase
+            .from('member_services')
+            .select('member_id, services(name)')
+            .in('member_id', memberIds);
+          const map: Record<string, string[]> = {};
+          (ms || []).forEach((row: any) => {
+            if (!row.services?.name) return;
+            (map[row.member_id] = map[row.member_id] || []).push(row.services.name);
+          });
+          setSpecialties(map);
+        }
       } catch (err: any) {
         setError(err.message);
       } finally {
@@ -78,15 +103,13 @@ export default function OrganizationPage() {
 
   if (loading) return <Spinner />;
 
-  if (error) {
+  if (error || !organization) {
     return (
       <div className="flex flex-col justify-center items-center min-h-screen bg-gray-50 gap-4 p-8 text-center">
         <div className="w-14 h-14 rounded-2xl bg-red-100 flex items-center justify-center">
-          <svg className="w-7 h-7 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
+          <Building2 className="w-7 h-7 text-red-400" />
         </div>
-        <p className="text-xl font-semibold text-gray-800">{error}</p>
+        <p className="text-xl font-semibold text-gray-800">{error || 'Página da empresa não encontrada.'}</p>
         <Link to="/" className="text-indigo-600 hover:text-indigo-700 text-sm font-medium transition-colors">
           ← Voltar ao início
         </Link>
@@ -94,64 +117,158 @@ export default function OrganizationPage() {
     );
   }
 
-  if (!organization) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-gray-50">
-        <p className="text-xl text-gray-500">Página da empresa não encontrada.</p>
-      </div>
-    );
-  }
+  const waNumber = organization.whatsapp?.replace(/\D/g, '');
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header banner */}
-      <div className="gradient-brand py-16 px-4 text-center relative overflow-hidden">
-        <div className="absolute top-0 left-1/4 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 right-1/4 w-48 h-48 bg-white/10 rounded-full blur-3xl" />
-        <div className="relative z-10">
-          <div className="w-20 h-20 rounded-2xl bg-white/15 border border-white/25 flex items-center justify-center mx-auto mb-4 text-3xl font-bold text-white">
-            {getInitials(organization.name)}
+      {/* Capa */}
+      <div className="relative h-44 sm:h-56 gradient-brand overflow-hidden">
+        {organization.cover_url ? (
+          <img src={organization.cover_url} alt="" className="w-full h-full object-cover" />
+        ) : (
+          <>
+            <div className="absolute top-0 left-1/4 w-64 h-64 bg-white/10 rounded-full blur-3xl" />
+            <div className="absolute bottom-0 right-1/4 w-48 h-48 bg-white/10 rounded-full blur-3xl" />
+          </>
+        )}
+      </div>
+
+      {/* Cabeçalho da empresa */}
+      <div className="max-w-4xl mx-auto px-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 -mt-14 relative z-10">
+          <div className="flex flex-col sm:flex-row sm:items-start gap-4">
+            <div className="w-20 h-20 rounded-2xl overflow-hidden border-4 border-white shadow-lg shrink-0 -mt-14 sm:-mt-16 bg-white">
+              {organization.logo_url ? (
+                <img src={organization.logo_url} alt={organization.name} className="w-full h-full object-cover" />
+              ) : (
+                <div className="w-full h-full gradient-brand flex items-center justify-center text-2xl font-bold text-white">
+                  {getInitials(organization.name)}
+                </div>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900">{organization.name}</h1>
+              {organization.description && (
+                <p className="text-gray-500 text-sm mt-2 leading-relaxed">{organization.description}</p>
+              )}
+              <div className="flex flex-wrap gap-x-5 gap-y-2 mt-4 text-sm">
+                {organization.address && (
+                  <span className="flex items-center gap-1.5 text-gray-500">
+                    <MapPin className="w-4 h-4 text-indigo-400 shrink-0" /> {organization.address}
+                  </span>
+                )}
+                {organization.opening_hours && (
+                  <span className="flex items-start gap-1.5 text-gray-500 whitespace-pre-line">
+                    <Clock className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" /> {organization.opening_hours}
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="flex sm:flex-col gap-2 shrink-0">
+              {waNumber && (
+                <a
+                  href={`https://wa.me/55${waNumber}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-1.5 bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-xl transition-all shadow-md shadow-emerald-500/20"
+                >
+                  <Phone className="w-4 h-4" /> WhatsApp
+                </a>
+              )}
+              {organization.instagram && (
+                <a
+                  href={`https://instagram.com/${organization.instagram}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-1.5 bg-white border border-gray-200 hover:border-pink-300 hover:text-pink-500 text-gray-600 text-sm font-semibold px-4 py-2 rounded-xl transition-all"
+                >
+                  <Camera className="w-4 h-4" /> @{organization.instagram}
+                </a>
+              )}
+            </div>
           </div>
-          <h1 className="text-4xl font-extrabold text-white">{organization.name}</h1>
-          <p className="text-indigo-200 mt-2 text-lg">Nossos Profissionais</p>
         </div>
       </div>
 
-      {/* Members grid */}
-      <div className="max-w-4xl mx-auto px-4 py-12">
-        {members.length === 0 ? (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-              </svg>
+      <div className="max-w-4xl mx-auto px-4 py-10 space-y-10">
+        {/* Profissionais */}
+        <section>
+          <div className="flex items-center gap-2 mb-5">
+            <Users className="w-5 h-5 text-indigo-500" />
+            <h2 className="text-xl font-bold text-gray-900">Escolha um profissional</h2>
+          </div>
+          {members.length === 0 ? (
+            <div className="text-center py-12 bg-white rounded-2xl border border-gray-100">
+              <p className="text-gray-400 font-medium">Nenhum profissional cadastrado ainda.</p>
             </div>
-            <p className="text-gray-500 font-medium">Nenhum profissional cadastrado nesta empresa ainda.</p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {members.map((member, i) => (
-              <Link
-                key={member.id}
-                to={`/${organization.slug}/${member.slug}`}
-                className="group bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center card-lift"
-              >
-                <div
-                  className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${gradients[i % gradients.length]} flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4 shadow-lg group-hover:scale-105 transition-transform duration-300`}
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {members.map((member, i) => (
+                <Link
+                  key={member.id}
+                  to={`/${organization.slug}/${member.slug}`}
+                  className="group bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center card-lift"
                 >
-                  {getInitials(member.name)}
+                  {member.avatar_url ? (
+                    <img
+                      src={member.avatar_url}
+                      alt={member.name}
+                      className="w-20 h-20 rounded-2xl object-cover mx-auto mb-4 shadow-lg group-hover:scale-105 transition-transform duration-300"
+                    />
+                  ) : (
+                    <div className={`w-20 h-20 rounded-2xl bg-gradient-to-br ${gradients[i % gradients.length]} flex items-center justify-center text-white text-2xl font-bold mx-auto mb-4 shadow-lg group-hover:scale-105 transition-transform duration-300`}>
+                      {getInitials(member.name)}
+                    </div>
+                  )}
+                  <h3 className="text-lg font-bold text-gray-900">{member.name}</h3>
+                  {(specialties[member.id] || []).length > 0 && (
+                    <div className="flex flex-wrap justify-center gap-1 mt-2">
+                      {specialties[member.id].slice(0, 3).map((s) => (
+                        <span key={s} className="text-[10px] bg-indigo-50 text-indigo-500 px-2 py-0.5 rounded-full font-medium">{s}</span>
+                      ))}
+                      {specialties[member.id].length > 3 && (
+                        <span className="text-[10px] text-gray-400">+{specialties[member.id].length - 3}</span>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-indigo-500 text-sm font-medium group-hover:text-indigo-700 transition-colors flex items-center justify-center gap-1 mt-3">
+                    Agendar horário
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" />
+                  </p>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+
+        {/* Serviços e preços */}
+        {services.length > 0 && (
+          <section>
+            <div className="flex items-center gap-2 mb-5">
+              <Scissors className="w-5 h-5 text-indigo-500" />
+              <h2 className="text-xl font-bold text-gray-900">Serviços e preços</h2>
+            </div>
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-50">
+              {services.map((s) => (
+                <div key={s.id} className="flex items-center gap-4 px-5 py-4">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-gray-800 text-sm">{s.name}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {s.duration} min{s.category ? ` · ${s.category}` : ''}
+                    </p>
+                  </div>
+                  <p className="font-bold text-indigo-600 shrink-0">
+                    R$ {Number(s.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                  </p>
                 </div>
-                <h2 className="text-xl font-bold text-gray-900 mb-1">{member.name}</h2>
-                <p className="text-indigo-500 text-sm font-medium group-hover:text-indigo-700 transition-colors flex items-center justify-center gap-1">
-                  Ver agenda
-                  <svg className="w-4 h-4 group-hover:translate-x-1 transition-transform duration-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </p>
-              </Link>
-            ))}
-          </div>
+              ))}
+            </div>
+          </section>
         )}
+
+        <p className="text-center text-xs text-gray-300 pt-4">
+          Agendamento online por <Link to="/" className="text-indigo-300 hover:text-indigo-500 transition-colors font-medium">AgendaFácil</Link>
+        </p>
       </div>
     </div>
   );
