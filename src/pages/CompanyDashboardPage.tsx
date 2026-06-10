@@ -11,9 +11,19 @@ type Booking = {
   start_time: string;
   end_time: string;
   client_name: string;
+  client_phone: string | null;
   member_id: string;
   status: string;
   services: { name: string; price: number; category?: string } | null;
+};
+
+type ClientStat = {
+  name: string;
+  phone: string;
+  visits: number;
+  lastVisit: string;
+  revenue: number;
+  favoriteMember: string;
 };
 
 type MemberStat = { id: string; name: string; bookings: number; revenue: number; cancelled: number };
@@ -99,8 +109,10 @@ export default function CompanyDashboardPage() {
     ? 'services'
     : location.pathname.endsWith('/team')
     ? 'team'
+    : location.pathname.endsWith('/clients')
+    ? 'clients'
     : 'overview';
-  const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'services'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'services' | 'clients'>(initialTab);
 
   useEffect(() => {
     const load = async () => {
@@ -136,7 +148,7 @@ export default function CompanyDashboardPage() {
 
       const { data: rawBookings } = await supabase
         .from('bookings')
-        .select('id, start_time, end_time, client_name, member_id, status, services(name, price, category)')
+        .select('id, start_time, end_time, client_name, client_phone, member_id, status, services(name, price, category)')
         .in('member_id', memberIds)
         .order('start_time', { ascending: false });
 
@@ -250,6 +262,41 @@ export default function CompanyDashboardPage() {
   const dayLabels = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   const maxDay = Math.max(...dayCount, 1);
 
+  // ── Clientes (CRM leve, agregado por telefone) ──────────────────────────────
+  const clientMap: Record<string, ClientStat & { memberCount: Record<string, number> }> = {};
+  bookings.forEach((b) => {
+    if (b.status === 'cancelled') return;
+    const key = (b.client_phone || b.client_name || '').replace(/\D/g, '') || b.client_name;
+    if (!key) return;
+    if (!clientMap[key]) {
+      clientMap[key] = {
+        name: b.client_name, phone: b.client_phone || '', visits: 0, lastVisit: b.start_time,
+        revenue: 0, favoriteMember: '', memberCount: {},
+      };
+    }
+    const c = clientMap[key];
+    c.visits++;
+    c.revenue += b.services?.price || 0;
+    if (b.start_time > c.lastVisit) { c.lastVisit = b.start_time; c.name = b.client_name; }
+    c.memberCount[b.member_id] = (c.memberCount[b.member_id] || 0) + 1;
+  });
+  const clientStats: ClientStat[] = Object.values(clientMap)
+    .map((c) => ({
+      ...c,
+      favoriteMember: membersMap[
+        Object.entries(c.memberCount).sort((a, b) => b[1] - a[1])[0]?.[0] || ''
+      ] || '—',
+    }))
+    .sort((a, b) => b.visits - a.visits || b.lastVisit.localeCompare(a.lastVisit));
+  const recurringClients = clientStats.filter((c) => c.visits > 1).length;
+  const newClientsThisMonth = clientStats.filter((c) =>
+    !bookings.some((b) =>
+      b.status !== 'cancelled'
+      && ((b.client_phone || b.client_name || '').replace(/\D/g, '') || b.client_name) === ((c.phone || c.name).replace(/\D/g, '') || c.name)
+      && b.start_time < startOfMonth,
+    ),
+  ).length;
+
   const bookingTrend = prevMonthBookings > 0
     ? `${monthBookings > prevMonthBookings ? '+' : ''}${(((monthBookings - prevMonthBookings) / prevMonthBookings) * 100).toFixed(0)}%`
     : null;
@@ -297,7 +344,7 @@ export default function CompanyDashboardPage() {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
-          {(['overview', 'team', 'services'] as const).map((tab) => (
+          {(['overview', 'clients', 'team', 'services'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -307,7 +354,7 @@ export default function CompanyDashboardPage() {
                   : 'bg-white text-gray-500 border border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
               }`}
             >
-              {tab === 'overview' ? '📊 Visão Geral' : tab === 'team' ? '👥 Equipe' : '✂️ Serviços'}
+              {tab === 'overview' ? '📊 Visão Geral' : tab === 'clients' ? '🤝 Clientes' : tab === 'team' ? '👥 Equipe' : '✂️ Serviços'}
             </button>
           ))}
         </div>
@@ -473,6 +520,86 @@ export default function CompanyDashboardPage() {
                   </div>
                 )}
               </div>
+            </div>
+          </>
+        )}
+
+        {/* ── Clients Tab ──────────────────────────────────────────────────── */}
+        {activeTab === 'clients' && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm text-center">
+                <p className="text-3xl font-extrabold gradient-text">{clientStats.length}</p>
+                <p className="text-sm text-gray-500 mt-1">Clientes únicos</p>
+              </div>
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm text-center">
+                <p className="text-3xl font-extrabold gradient-text">{recurringClients}</p>
+                <p className="text-sm text-gray-500 mt-1">Clientes recorrentes (2+ visitas)</p>
+              </div>
+              <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm text-center">
+                <p className="text-3xl font-extrabold gradient-text">{newClientsThisMonth}</p>
+                <p className="text-sm text-gray-500 mt-1">Novos este mês</p>
+              </div>
+            </div>
+
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+              <h2 className="text-lg font-bold text-gray-900 mb-1">Histórico de Clientes</h2>
+              <p className="text-xs text-gray-400 mb-5">Gerado automaticamente a partir dos agendamentos</p>
+              {clientStats.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-8">Nenhum cliente ainda. Compartilhe sua página pública!</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                        <th className="pb-3 pr-4 font-semibold">Cliente</th>
+                        <th className="pb-3 pr-4 font-semibold">Visitas</th>
+                        <th className="pb-3 pr-4 font-semibold">Última visita</th>
+                        <th className="pb-3 pr-4 font-semibold hidden md:table-cell">Profissional frequente</th>
+                        <th className="pb-3 pr-4 font-semibold text-right">Total gasto</th>
+                        <th className="pb-3 font-semibold text-right">Contato</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {clientStats.map((c) => (
+                        <tr key={c.phone || c.name} className="border-b border-gray-50 last:border-0">
+                          <td className="py-3 pr-4">
+                            <div className="flex items-center gap-2.5">
+                              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 ${
+                                c.visits > 1 ? 'gradient-brand' : 'bg-gray-300'
+                              }`}>
+                                {c.name?.charAt(0).toUpperCase() || '?'}
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-semibold text-gray-800 truncate">{c.name}</p>
+                                {c.visits > 1 && <span className="text-[10px] text-indigo-500 font-medium">Recorrente</span>}
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 pr-4 font-bold text-gray-700">{c.visits}</td>
+                          <td className="py-3 pr-4 text-gray-500">{new Date(c.lastVisit).toLocaleDateString('pt-BR')}</td>
+                          <td className="py-3 pr-4 text-gray-500 hidden md:table-cell">{c.favoriteMember}</td>
+                          <td className="py-3 pr-4 text-right font-semibold text-emerald-600">
+                            R$ {c.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
+                          </td>
+                          <td className="py-3 text-right">
+                            {c.phone && (
+                              <a
+                                href={`https://wa.me/55${c.phone.replace(/\D/g, '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                              >
+                                WhatsApp ↗
+                              </a>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           </>
         )}

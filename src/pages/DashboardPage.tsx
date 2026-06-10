@@ -5,6 +5,8 @@ import ManageServices from '../components/ManageServices';
 import ManageAvailability from '../components/ManageAvailability';
 import AgendaCalendar from '../components/AgendaCalendar';
 import ManageMembers from '../components/ManageMembers';
+import ManageTimeBlocks from '../components/ManageTimeBlocks';
+import DayOverview from '../components/DayOverview';
 import AppShell from '../components/AppShell';
 import type { UserProfile, MemberLink } from '../components/Sidebar';
 
@@ -21,6 +23,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null);
+  const [memberSlug, setMemberSlug] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [canEditProfile, setCanEditProfile] = useState(false);
   const [canEditServices, setCanEditServices] = useState(false);
@@ -38,7 +41,7 @@ export default function DashboardPage() {
 
       const { data: member, error: memberError } = await supabase
         .from('members')
-        .select('id, name, role, organization_id, can_edit_profile, can_edit_services, can_edit_price, phone, avatar_url')
+        .select('id, name, slug, role, organization_id, can_edit_profile, can_edit_services, can_edit_price, phone, avatar_url')
         .eq('user_id', user.id)
         .order('organization_id', { ascending: true, nullsFirst: false })
         .limit(1)
@@ -51,6 +54,7 @@ export default function DashboardPage() {
 
 
       setMemberId(member.id);
+      setMemberSlug(member.slug || null);
       setOrganizationId(member.organization_id);
       setIsAdmin(member.role === 'admin');
       setCanEditProfile(member.can_edit_profile);
@@ -147,6 +151,7 @@ export default function DashboardPage() {
       members={membersList}
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      memberSlug={memberSlug}
       onLogout={handleLogout}
     >
       <div className="min-w-0">
@@ -163,11 +168,27 @@ export default function DashboardPage() {
           </div>
         </div>
 
+        {/* Visão do dia: métricas + agenda de hoje + próximos dias */}
+        {memberId && <DayOverview memberId={memberId} />}
+
         {/* Calendar */}
         {organizationId && (
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
-            <AgendaCalendar organizationId={organizationId} memberId={isAdmin ? undefined : memberId || undefined} />
-          </div>
+          <>
+            <SectionDivider title="Calendário Completo" />
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
+              <AgendaCalendar organizationId={organizationId} memberId={isAdmin ? undefined : memberId || undefined} />
+            </div>
+          </>
+        )}
+
+        {/* Bloqueios de horário */}
+        {memberId && (
+          <>
+            <SectionDivider title="Bloqueios" />
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
+              <ManageTimeBlocks memberId={memberId} />
+            </div>
+          </>
         )}
 
         {/* Admin-only: team management */}

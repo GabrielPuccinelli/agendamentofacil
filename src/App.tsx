@@ -11,6 +11,8 @@ const MemberDashboardPage = lazy(() => import('./pages/MemberDashboardPage'));
 const EditProfilePage = lazy(() => import('./pages/EditProfilePage'));
 const CompanyDashboardPage = lazy(() => import('./pages/CompanyDashboardPage'));
 const InviteCreatePage = lazy(() => import('./pages/InviteCreatePage'));
+const CompanyProfilePage = lazy(() => import('./pages/CompanyProfilePage'));
+const ManageBookingPage = lazy(() => import('./pages/ManageBookingPage'));
 const InviteAcceptPage = lazy(() => import('./pages/InviteAcceptPage'));
 const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
@@ -39,8 +41,11 @@ function App() {
           <Route path="/:organizationSlug/p/:memberSlug/dashboard" element={<MemberDashboardPage />} />
           <Route path="/company/services" element={<CompanyDashboardPage />} />
           <Route path="/company/team" element={<CompanyDashboardPage />} />
+          <Route path="/company/clients" element={<CompanyDashboardPage />} />
+          <Route path="/company/profile" element={<CompanyProfilePage />} />
           <Route path="/company/invite" element={<InviteCreatePage />} />
           <Route path="/invite/:token" element={<InviteAcceptPage />} />
+          <Route path="/agendamento/:token" element={<ManageBookingPage />} />
           {/* Legacy public URLs (links antigos continuam funcionando) */}
           <Route path="/e/:organizationSlug" element={<OrganizationPage />} />
           <Route path="/e/:organizationSlug/p/:memberSlug" element={<PublicPage />} />
