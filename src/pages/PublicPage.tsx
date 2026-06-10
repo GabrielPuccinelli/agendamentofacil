@@ -380,6 +380,8 @@ export default function PublicPage() {
                   type="text"
                   id="clientName"
                   required
+                  minLength={2}
+                  maxLength={120}
                   value={clientName}
                   onChange={(e) => setClientName(e.target.value)}
                   placeholder="Nome completo"
@@ -394,6 +396,7 @@ export default function PublicPage() {
                   type="tel"
                   id="clientPhone"
                   required
+                  minLength={8}
                   value={clientPhone}
                   onChange={(e) => setClientPhone(e.target.value)}
                   placeholder="(XX) XXXXX-XXXX"

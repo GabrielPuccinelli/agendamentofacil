@@ -105,7 +105,7 @@ export default function CompanyDashboardPage() {
   useEffect(() => {
     const load = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) { navigate('/login'); return; }
+      if (!session) { navigate(`/login?redirect=${encodeURIComponent(window.location.pathname)}`); return; }
 
       const { data: member } = await supabase
         .from('members')
