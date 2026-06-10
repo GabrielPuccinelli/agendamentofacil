@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, BarChart3, Scissors, Users, UserPlus,
   UserCog, LogOut, CalendarDays, ExternalLink, Copy, Check,
+  Contact, Building2,
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -171,10 +172,12 @@ export const SidebarContent: React.FC<SidebarProps & { onNavigate?: () => void }
           {isAdmin && (
             <>
               <SectionLabel>Empresa</SectionLabel>
-              <NavItem to="/company/dashboard" icon={<BarChart3 className="w-5 h-5" />} label="Analytics" onNavigate={onNavigate} />
+              <NavItem to="/company/dashboard" icon={<BarChart3 className="w-5 h-5" />} label="Visão Geral" onNavigate={onNavigate} />
+              <NavItem to="/company/clients" icon={<Contact className="w-5 h-5" />} label="Clientes" onNavigate={onNavigate} />
               <NavItem to="/company/services" icon={<Scissors className="w-5 h-5" />} label="Serviços" onNavigate={onNavigate} />
               <NavItem to="/company/team" icon={<Users className="w-5 h-5" />} label="Equipe" onNavigate={onNavigate} />
               <NavItem to="/company/invite" icon={<UserPlus className="w-5 h-5" />} label="Convidar Membro" onNavigate={onNavigate} />
+              <NavItem to="/company/profile" icon={<Building2 className="w-5 h-5" />} label="Perfil da Empresa" onNavigate={onNavigate} />
               <SectionLabel>Meu Perfil</SectionLabel>
             </>
           )}
