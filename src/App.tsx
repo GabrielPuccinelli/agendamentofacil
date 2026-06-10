@@ -12,6 +12,7 @@ const EditProfilePage = lazy(() => import('./pages/EditProfilePage'));
 const CompanyDashboardPage = lazy(() => import('./pages/CompanyDashboardPage'));
 const InviteCreatePage = lazy(() => import('./pages/InviteCreatePage'));
 const InviteAcceptPage = lazy(() => import('./pages/InviteAcceptPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
 
 function PageLoader() {
   return (
@@ -42,6 +43,7 @@ function App() {
           <Route path="/invite/:token" element={<InviteAcceptPage />} />
           <Route path="/e/:organizationSlug" element={<OrganizationPage />} />
           <Route path="/e/:organizationSlug/p/:memberSlug" element={<PublicPage />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </Suspense>
     </BrowserRouter>

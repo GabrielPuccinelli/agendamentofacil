@@ -33,7 +33,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchData = async () => {
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session) { navigate('/login'); return; }
+      if (sessionError || !session) { navigate(`/login?redirect=${encodeURIComponent(window.location.pathname)}`); return; }
       const user = session.user;
 
       const { data: member, error: memberError } = await supabase

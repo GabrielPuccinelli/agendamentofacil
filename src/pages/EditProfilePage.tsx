@@ -109,7 +109,7 @@ const EditProfilePage: React.FC = () => {
   useEffect(() => {
     const fetchProfile = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { navigate('/login'); return; }
+      if (!user) { navigate(`/login?redirect=${encodeURIComponent(window.location.pathname)}`); return; }
 
       setEmail(user.email || '');
 

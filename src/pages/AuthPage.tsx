@@ -16,8 +16,10 @@ export default function AuthPage() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Support ?redirect=/invite/xxx so invite links work after login
-  const redirectTo = new URLSearchParams(window.location.search).get('redirect') || '/dashboard';
+  // Support ?redirect=/invite/xxx so invite links work after login.
+  // Only internal paths are allowed (blocks open-redirect like //evil.com).
+  const rawRedirect = new URLSearchParams(window.location.search).get('redirect') || '';
+  const redirectTo = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '/dashboard';
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -140,7 +142,7 @@ export default function AuthPage() {
                   },
                 },
               }}
-              providers={['google']}
+              providers={[]}
               localization={{
                 variables: {
                   sign_in: {
