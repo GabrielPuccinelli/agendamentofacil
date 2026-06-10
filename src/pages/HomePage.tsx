@@ -328,7 +328,7 @@ const HomePage: React.FC = () => {
                     size="lg"
                     className="gradient-brand h-auto py-4 px-8 rounded-2xl text-base font-bold shadow-lg shadow-indigo-500/30 transition-all hover:opacity-90 hover:shadow-2xl hover:shadow-indigo-500/40 hover:-translate-y-1"
                   >
-                    <Link to="/login">
+                    <Link to="/login?view=sign_up">
                       Começar Gratuitamente
                       <ArrowRight />
                     </Link>
@@ -556,7 +556,7 @@ const HomePage: React.FC = () => {
                     ))}
                   </ul>
                   <Link
-                    to="/login"
+                    to="/login?view=sign_up"
                     className="block w-full bg-white text-indigo-700 hover:bg-indigo-50 font-bold py-4 px-6 rounded-2xl transition-all hover:shadow-xl text-center"
                   >
                     Começar Agora — Grátis
@@ -599,7 +599,7 @@ const HomePage: React.FC = () => {
                 size="lg"
                 className="gradient-brand h-auto py-5 px-12 rounded-2xl text-lg font-bold shadow-lg shadow-indigo-500/30 transition-all hover:opacity-90 hover:shadow-2xl hover:shadow-indigo-500/40 hover:-translate-y-1"
               >
-                <Link to="/login">
+                <Link to="/login?view=sign_up">
                   Criar conta gratuitamente
                   <ArrowRight />
                 </Link>

@@ -53,8 +53,10 @@ const STEP_LABELS: Record<Step, string> = {
 
 export default function OnboardingPage() {
   const navigate = useNavigate();
-  const [step, setStep] = useState<Step>('role');
-  const [role, setRole] = useState<Role>(null);
+  // Papel pré-selecionado na tela de cadastro (AuthPage)
+  const presetRole = (sessionStorage.getItem('signup_role') as Role) || null;
+  const [step, setStep] = useState<Step>(presetRole ? 'personal' : 'role');
+  const [role, setRole] = useState<Role>(presetRole);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -116,6 +118,12 @@ export default function OnboardingPage() {
     if (step === 'personal') { setStep('address'); return; }
     if (step === 'address' && role === 'owner') { setStep('company'); return; }
 
+    const RESERVED_SLUGS = ['login', 'onboarding', 'dashboard', 'company', 'profile', 'invite', 'e', 'admin', 'api', 'assets', 'app'];
+    if (role === 'owner' && RESERVED_SLUGS.includes(orgSlug)) {
+      setError('Este link não está disponível. Escolha outro nome para o link da empresa.');
+      return;
+    }
+
     // Final submit
     setLoading(true);
     try {
@@ -159,6 +167,7 @@ export default function OnboardingPage() {
         });
         if (memberError) throw new Error(`Erro ao criar perfil: ${memberError.message}`);
 
+        sessionStorage.removeItem('signup_role');
         navigate('/dashboard');
       } else {
         // Collaborator: no org yet, just save their profile for when admin adds them
@@ -184,6 +193,7 @@ export default function OnboardingPage() {
         });
         if (memberError) throw new Error(`Erro ao criar perfil: ${memberError.message}`);
 
+        sessionStorage.removeItem('signup_role');
         navigate('/dashboard');
       }
     } catch (err: any) {
@@ -413,7 +423,7 @@ export default function OnboardingPage() {
                       />
                     </div>
                     <p className="text-xs text-indigo-400 mt-1">
-                      Seus clientes vão acessar: agendamentofacil.com/e/{orgSlug || 'minha-empresa'}
+                      Seus clientes vão acessar: agendamentofacil.com/{orgSlug || 'minha-empresa'}
                     </p>
                   </div>
                 </div>

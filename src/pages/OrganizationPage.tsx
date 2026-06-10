@@ -133,7 +133,7 @@ export default function OrganizationPage() {
             {members.map((member, i) => (
               <Link
                 key={member.id}
-                to={`/e/${organization.slug}/p/${member.slug}`}
+                to={`/${organization.slug}/${member.slug}`}
                 className="group bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center card-lift"
               >
                 <div

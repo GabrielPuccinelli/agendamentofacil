@@ -117,7 +117,9 @@ const EditProfilePage: React.FC = () => {
         .from('members')
         .select('*')
         .eq('user_id', user.id)
-        .single();
+        .order('organization_id', { ascending: true, nullsFirst: false })
+        .limit(1)
+        .maybeSingle();
 
       if (error || !member) { navigate('/dashboard'); return; }
 

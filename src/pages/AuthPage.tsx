@@ -4,6 +4,7 @@ import { Auth } from '@supabase/auth-ui-react';
 import { ThemeSupa } from '@supabase/auth-ui-shared';
 import { useNavigate, Link } from 'react-router-dom';
 import type { Session } from '@supabase/supabase-js';
+import { Building2, User } from 'lucide-react';
 
 const CalendarIcon = () => (
   <svg className="w-9 h-9 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -20,6 +21,17 @@ export default function AuthPage() {
   // Only internal paths are allowed (blocks open-redirect like //evil.com).
   const rawRedirect = new URLSearchParams(window.location.search).get('redirect') || '';
   const redirectTo = rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : '/dashboard';
+
+  const initialView = new URLSearchParams(window.location.search).get('view') === 'sign_up' ? 'sign_up' : 'sign_in';
+  const [view, setView] = useState<'sign_in' | 'sign_up'>(initialView);
+  const [signupRole, setSignupRole] = useState<'owner' | 'staff' | null>(
+    (sessionStorage.getItem('signup_role') as 'owner' | 'staff') || null,
+  );
+
+  const chooseRole = (r: 'owner' | 'staff') => {
+    setSignupRole(r);
+    sessionStorage.setItem('signup_role', r);
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -95,10 +107,56 @@ export default function AuthPage() {
           </div>
 
           <div className="glass rounded-3xl p-8">
-            <div className="mb-6">
-              <h2 className="text-2xl font-bold text-white">Bem-vindo de volta</h2>
-              <p className="text-indigo-300 text-sm mt-1">Entre na sua conta para continuar</p>
+            {/* Tabs Entrar / Criar conta */}
+            <div className="grid grid-cols-2 gap-1 bg-white/5 border border-white/10 rounded-2xl p-1 mb-6">
+              {([['sign_in', 'Entrar'], ['sign_up', 'Criar conta']] as const).map(([v, label]) => (
+                <button
+                  key={v}
+                  type="button"
+                  onClick={() => setView(v)}
+                  className={`py-2.5 text-sm font-semibold rounded-xl transition-all ${
+                    view === v ? 'gradient-brand text-white shadow-lg shadow-indigo-500/25' : 'text-indigo-300 hover:text-white'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
+
+            <div className="mb-6">
+              <h2 className="text-2xl font-bold text-white">
+                {view === 'sign_in' ? 'Bem-vindo de volta' : 'Crie sua conta'}
+              </h2>
+              <p className="text-indigo-300 text-sm mt-1">
+                {view === 'sign_in' ? 'Entre na sua conta para continuar' : 'Escolha como você vai usar o AgendaFácil'}
+              </p>
+            </div>
+
+            {/* Escolha de perfil no cadastro */}
+            {view === 'sign_up' && (
+              <div className="grid grid-cols-2 gap-3 mb-6">
+                {([
+                  ['owner', 'Empresa', 'Quero gerenciar minha equipe e agenda', Building2],
+                  ['staff', 'Funcionário', 'Fui convidado por uma empresa', User],
+                ] as const).map(([r, title, desc, Icon]) => (
+                  <button
+                    key={r}
+                    type="button"
+                    onClick={() => chooseRole(r)}
+                    className={`text-left rounded-2xl border p-4 transition-all ${
+                      signupRole === r
+                        ? 'border-indigo-400 bg-indigo-500/20 shadow-lg shadow-indigo-500/10'
+                        : 'border-white/10 bg-white/5 hover:bg-white/10'
+                    }`}
+                  >
+                    <Icon className={`w-5 h-5 mb-2 ${signupRole === r ? 'text-indigo-300' : 'text-indigo-400/70'}`} />
+                    <p className="text-white text-sm font-semibold">{title}</p>
+                    <p className="text-indigo-300/80 text-xs mt-0.5 leading-snug">{desc}</p>
+                  </button>
+                ))}
+              </div>
+            )}
+
             <Auth
               supabaseClient={supabase}
               redirectTo={`${window.location.origin}${redirectTo}`}
@@ -143,6 +201,8 @@ export default function AuthPage() {
                 },
               }}
               providers={[]}
+              view={view}
+              showLinks={false}
               localization={{
                 variables: {
                   sign_in: {

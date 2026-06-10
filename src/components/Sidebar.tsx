@@ -119,7 +119,7 @@ export const SidebarContent: React.FC<SidebarProps & { onNavigate?: () => void }
         {/* Company link for admins */}
         {isAdmin && organizationSlug && (
           <a
-            href={`/e/${organizationSlug}`}
+            href={`/${organizationSlug}`}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs hover:bg-indigo-500/20 transition-all"
