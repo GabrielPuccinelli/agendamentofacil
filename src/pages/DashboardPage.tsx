@@ -21,6 +21,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null);
+  const [memberSlug, setMemberSlug] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [canEditProfile, setCanEditProfile] = useState(false);
   const [canEditServices, setCanEditServices] = useState(false);
@@ -38,7 +39,7 @@ export default function DashboardPage() {
 
       const { data: member, error: memberError } = await supabase
         .from('members')
-        .select('id, name, role, organization_id, can_edit_profile, can_edit_services, can_edit_price, phone, avatar_url')
+        .select('id, name, slug, role, organization_id, can_edit_profile, can_edit_services, can_edit_price, phone, avatar_url')
         .eq('user_id', user.id)
         .order('organization_id', { ascending: true, nullsFirst: false })
         .limit(1)
@@ -51,6 +52,7 @@ export default function DashboardPage() {
 
 
       setMemberId(member.id);
+      setMemberSlug(member.slug || null);
       setOrganizationId(member.organization_id);
       setIsAdmin(member.role === 'admin');
       setCanEditProfile(member.can_edit_profile);
@@ -147,6 +149,7 @@ export default function DashboardPage() {
       members={membersList}
       organizationSlug={organizationSlug}
       organizationName={organizationName}
+      memberSlug={memberSlug}
       onLogout={handleLogout}
     >
       <div className="min-w-0">

@@ -2,8 +2,10 @@ import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, BarChart3, Scissors, Users, UserPlus,
-  UserCog, LogOut, CalendarDays, ExternalLink,
+  UserCog, LogOut, CalendarDays, ExternalLink, Copy, Check,
 } from 'lucide-react';
+import { useState } from 'react';
+import { toast } from 'sonner';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -26,7 +28,45 @@ export type SidebarProps = {
   members: MemberLink[];
   organizationSlug: string | null;
   organizationName: string | null;
+  /** Slug público do membro logado — habilita o card "meu link" para funcionários */
+  memberSlug?: string | null;
   onLogout: () => void;
+};
+
+/** Card de link público com botão copiar (usado para empresa e profissional). */
+const PublicLinkCard = ({ href, label }: { href: string; label: string }) => {
+  const [copied, setCopied] = useState(false);
+  const fullUrl = `${window.location.origin}${href}`;
+  const copy = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+      setCopied(true);
+      toast.success('Link copiado!');
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error('Não foi possível copiar o link.');
+    }
+  };
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs hover:bg-indigo-500/20 transition-all group/link"
+    >
+      <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+      <span className="truncate flex-1">{label}</span>
+      <button
+        onClick={copy}
+        title="Copiar link"
+        className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md hover:bg-indigo-500/30 transition-all"
+      >
+        {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+      </button>
+    </a>
+  );
 };
 
 type NavItemProps = {
@@ -78,7 +118,7 @@ const SectionLabel = ({ children }: { children: React.ReactNode }) => (
  * `onNavigate` lets the mobile drawer close itself when a link is tapped.
  */
 export const SidebarContent: React.FC<SidebarProps & { onNavigate?: () => void }> = ({
-  userProfile, isAdmin, organizationSlug, organizationName, onLogout, onNavigate,
+  userProfile, isAdmin, organizationSlug, organizationName, memberSlug, onLogout, onNavigate,
 }) => {
   const navigate = useNavigate();
   const initials = userProfile?.name?.trim()?.charAt(0).toUpperCase() || '?';
@@ -116,17 +156,12 @@ export const SidebarContent: React.FC<SidebarProps & { onNavigate?: () => void }
           </div>
         </div>
 
-        {/* Company link for admins */}
+        {/* Links públicos com copiar */}
         {isAdmin && organizationSlug && (
-          <a
-            href={`/${organizationSlug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs hover:bg-indigo-500/20 transition-all"
-          >
-            <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate flex-1">{organizationName || 'Página da empresa'}</span>
-          </a>
+          <PublicLinkCard href={`/${organizationSlug}`} label={organizationName || 'Página da empresa'} />
+        )}
+        {organizationSlug && memberSlug && (
+          <PublicLinkCard href={`/${organizationSlug}/${memberSlug}`} label="Meu link de agendamento" />
         )}
       </div>
 
