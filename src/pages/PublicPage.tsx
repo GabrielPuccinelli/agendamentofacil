@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Loader2, Star } from 'lucide-react';
+import confetti from 'canvas-confetti';
 import { PublicLoading } from '../components/LoadingScreen';
 
 import { DayPicker } from 'react-day-picker';
@@ -219,6 +220,9 @@ export default function PublicPage() {
       setManageToken(created?.manage_token || null);
       setPendingBooking(status === 'pending');
       setBookingSuccess(true);
+      if (!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+        confetti({ particleCount: 90, spread: 70, origin: { y: 0.6 }, colors: ['#6366f1', '#7c3aed', '#a78bfa'] });
+      }
       toast.success(status === 'pending' ? 'Pedido de agendamento enviado!' : 'Agendamento confirmado!');
       setAvailableSlots((slots) => slots.filter((s) => s !== selectedSlot));
     } catch (err: any) {
