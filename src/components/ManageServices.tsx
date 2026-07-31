@@ -15,6 +15,7 @@ type Service = {
   duration: number;
   price: number;
   organization_id: string;
+  is_combo?: boolean;
 };
 
 type Props = {
@@ -79,6 +80,12 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
 
   // Inline edit state
   const [editing, setEditing] = useState<EditingState | null>(null);
+
+  // Combo form state
+  const [showCombo, setShowCombo] = useState(false);
+  const [comboName, setComboName] = useState('');
+  const [comboItemIds, setComboItemIds] = useState<Set<string>>(new Set());
+  const [comboPrice, setComboPrice] = useState<number | null>(null);
 
   // ── Queries ──────────────────────────────────────────────────────────────
   const { data: allServices, isLoading: isLoadingServices } = useQuery(
@@ -192,6 +199,64 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
     }
   );
 
+  // Itens que compõem cada combo (para exibir "inclui: ...")
+  const { data: comboItemsMap } = useQuery(
+    ['comboItems', organizationId, memberId],
+    async () => {
+      const combos = (allServices || []).filter((s) => s.is_combo);
+      if (combos.length === 0) return {} as Record<string, string[]>;
+      const { data } = await supabase
+        .from('combo_items')
+        .select('combo_id, services:item_service_id(name)')
+        .in('combo_id', combos.map((c) => c.id));
+      const map: Record<string, string[]> = {};
+      (data || []).forEach((r: any) => {
+        if (!r.services?.name) return;
+        (map[r.combo_id] = map[r.combo_id] || []).push(r.services.name);
+      });
+      return map;
+    },
+    { enabled: !!allServices && allServices.some((s) => s.is_combo) },
+  );
+
+  const nonCombo = (allServices || []).filter((s) => !s.is_combo);
+  const comboSelected = nonCombo.filter((s) => comboItemIds.has(s.id));
+  const comboAutoPrice = comboSelected.reduce((a, s) => a + Number(s.price), 0);
+  const comboAutoDuration = comboSelected.reduce((a, s) => a + s.duration, 0);
+
+  const createComboMutation = useMutation(
+    async () => {
+      if (!organizationId) throw new Error('Apenas admins podem criar combos.');
+      if (comboSelected.length < 2) throw new Error('Selecione ao menos 2 serviços.');
+      const { data: combo, error } = await supabase
+        .from('services')
+        .insert({
+          name: comboName,
+          duration: comboAutoDuration,
+          price: comboPrice ?? comboAutoPrice,
+          organization_id: organizationId,
+          is_combo: true,
+          category: 'Combo',
+        })
+        .select('id')
+        .single();
+      if (error) throw new Error(error.message);
+      const { error: itemsErr } = await supabase
+        .from('combo_items')
+        .insert(comboSelected.map((s) => ({ combo_id: combo.id, item_service_id: s.id })));
+      if (itemsErr) throw new Error(itemsErr.message);
+    },
+    {
+      onSuccess: () => {
+        queryClient.invalidateQueries(['services', organizationId]);
+        queryClient.invalidateQueries(['comboItems', organizationId, memberId]);
+        setComboName(''); setComboItemIds(new Set()); setComboPrice(null); setShowCombo(false);
+        toast.success('Combo criado!');
+      },
+      onError: (e) => { toast.error((e as Error).message); },
+    },
+  );
+
   const toggleMutation = useMutation(
     async ({ serviceId, isAssigned }: { serviceId: string; isAssigned: boolean }) => {
       if (isAssigned) {
@@ -234,15 +299,88 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
           </p>
         </div>
         {organizationId && (
-          <button
-            onClick={() => setShowCreate(!showCreate)}
-            className="flex items-center gap-2 gradient-brand text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:opacity-90 transition-all shadow-md shadow-indigo-500/20"
-          >
-            <PlusIcon />
-            Novo Serviço
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setShowCombo(!showCombo); setShowCreate(false); }}
+              className="flex items-center gap-2 bg-white text-indigo-600 border border-indigo-200 text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-indigo-50 transition-all"
+            >
+              <PlusIcon />
+              Criar Combo
+            </button>
+            <button
+              onClick={() => { setShowCreate(!showCreate); setShowCombo(false); }}
+              className="flex items-center gap-2 gradient-brand text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:opacity-90 transition-all shadow-md shadow-indigo-500/20"
+            >
+              <PlusIcon />
+              Novo Serviço
+            </button>
+          </div>
         )}
       </div>
+
+      {/* Combo form */}
+      {showCombo && organizationId && (
+        <div className="bg-violet-50 border border-violet-100 rounded-2xl p-5 mb-6">
+          <h3 className="font-semibold text-violet-800 mb-1">Criar combo</h3>
+          <p className="text-xs text-violet-500 mb-4">Agrupe serviços num pacote com preço único (ex.: Corte + Barba).</p>
+          <div className="mb-3">
+            <label className="block text-xs font-medium text-gray-600 mb-1">Nome do combo *</label>
+            <input type="text" placeholder="Ex: Combo Corte + Barba" value={comboName} onChange={(e) => setComboName(e.target.value)} className={inputCls} />
+          </div>
+          <label className="block text-xs font-medium text-gray-600 mb-1">Serviços inclusos (mín. 2) *</label>
+          {nonCombo.length === 0 ? (
+            <p className="text-xs text-amber-600 mb-3">Cadastre serviços primeiro.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3 max-h-48 overflow-y-auto">
+              {nonCombo.map((s) => {
+                const checked = comboItemIds.has(s.id);
+                return (
+                  <label key={s.id} className={`flex items-center gap-2 px-3 py-2 rounded-xl border cursor-pointer transition-all ${checked ? 'border-violet-300 bg-white' : 'border-gray-200 bg-white/60'}`}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => setComboItemIds((prev) => {
+                        const next = new Set(prev);
+                        if (next.has(s.id)) next.delete(s.id); else next.add(s.id);
+                        return next;
+                      })}
+                    />
+                    <span className="text-sm text-gray-700 flex-1 truncate">{s.name}</span>
+                    <span className="text-xs text-gray-400">R$ {Number(s.price).toFixed(0)}</span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Preço do combo (R$)</label>
+              <input
+                type="number" min={0} step="0.01"
+                placeholder={comboAutoPrice.toFixed(2)}
+                value={comboPrice ?? ''}
+                onChange={(e) => setComboPrice(e.target.value === '' ? null : parseFloat(e.target.value))}
+                className={inputCls}
+              />
+              <p className="text-[11px] text-gray-400 mt-1">Soma dos itens: R$ {comboAutoPrice.toFixed(2)}</p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Duração total</label>
+              <div className="px-3 py-2 border border-gray-200 rounded-xl text-sm bg-gray-50 text-gray-500">{comboAutoDuration} min</div>
+            </div>
+          </div>
+          <div className="flex gap-2 justify-end">
+            <button onClick={() => setShowCombo(false)} className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all">Cancelar</button>
+            <button
+              onClick={() => createComboMutation.mutate()}
+              disabled={!comboName || comboSelected.length < 2 || createComboMutation.isLoading}
+              className="px-4 py-2 text-sm font-semibold text-white bg-violet-600 rounded-xl hover:opacity-90 disabled:opacity-50 transition-all"
+            >
+              {createComboMutation.isLoading ? 'Criando...' : 'Criar combo'}
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Create form */}
       {showCreate && organizationId && (
@@ -380,7 +518,10 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-gray-900">{service.name}</p>
-                        {service.category && (
+                        {service.is_combo && (
+                          <span className="text-xs bg-violet-600 text-white px-2 py-0.5 rounded-full font-medium">Combo</span>
+                        )}
+                        {service.category && !service.is_combo && (
                           <span className="text-xs bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full font-medium">
                             {service.category}
                           </span>
@@ -391,6 +532,9 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
                           </span>
                         )}
                       </div>
+                      {service.is_combo && comboItemsMap?.[service.id] && (
+                        <p className="text-xs text-violet-500 mt-0.5">Inclui: {comboItemsMap[service.id].join(', ')}</p>
+                      )}
                       {service.description && (
                         <p className="text-sm text-gray-500 mt-0.5 leading-relaxed">{service.description}</p>
                       )}
