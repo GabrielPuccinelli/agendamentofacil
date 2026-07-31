@@ -8,8 +8,10 @@ import ManageMembers from '../components/ManageMembers';
 import ManageTimeBlocks from '../components/ManageTimeBlocks';
 import DayOverview from '../components/DayOverview';
 import GettingStarted from '../components/GettingStarted';
+import NewBookingDialog from '../components/NewBookingDialog';
 import AppShell from '../components/AppShell';
 import { AppLoading } from '../components/LoadingScreen';
+import { Plus } from 'lucide-react';
 import type { UserProfile, MemberLink } from '../components/Sidebar';
 
 const SectionDivider = ({ title }: { title: string }) => (
@@ -26,6 +28,8 @@ export default function DashboardPage() {
   const [organizationId, setOrganizationId] = useState<string | null>(null);
   const [memberId, setMemberId] = useState<string | null>(null);
   const [memberSlug, setMemberSlug] = useState<string | null>(null);
+  const [newBookingOpen, setNewBookingOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [canEditProfile, setCanEditProfile] = useState(false);
   const [canEditServices, setCanEditServices] = useState(false);
@@ -152,12 +156,22 @@ export default function DashboardPage() {
         <div className="gradient-brand rounded-2xl p-6 mb-8 text-white shadow-lg shadow-indigo-500/20 relative overflow-hidden">
           <div className="absolute -top-8 -right-8 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
           <div className="absolute -bottom-6 -left-6 w-24 h-24 bg-white/10 rounded-full blur-2xl" />
-          <div className="relative z-10">
-            <p className="text-indigo-200 text-sm font-medium">{greeting},</p>
-            <h1 className="text-2xl md:text-3xl font-bold mt-0.5">{userProfile?.name || ''}!</h1>
-            <p className="text-indigo-200 text-sm mt-1">
-              {isAdmin ? 'Você está gerenciando sua empresa.' : 'Aqui está a sua agenda.'}
-            </p>
+          <div className="relative z-10 flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <p className="text-indigo-200 text-sm font-medium">{greeting},</p>
+              <h1 className="text-2xl md:text-3xl font-bold mt-0.5">{userProfile?.name || ''}!</h1>
+              <p className="text-indigo-200 text-sm mt-1">
+                {isAdmin ? 'Você está gerenciando sua empresa.' : 'Aqui está a sua agenda.'}
+              </p>
+            </div>
+            {memberId && organizationId && (
+              <button
+                onClick={() => setNewBookingOpen(true)}
+                className="flex items-center gap-1.5 bg-white text-indigo-700 text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md hover:bg-indigo-50 transition-all"
+              >
+                <Plus className="w-4 h-4" /> Novo agendamento
+              </button>
+            )}
           </div>
         </div>
 
@@ -173,7 +187,19 @@ export default function DashboardPage() {
         )}
 
         {/* Visão do dia: métricas + agenda de hoje + próximos dias */}
-        {memberId && <DayOverview memberId={memberId} />}
+        {memberId && <DayOverview key={refreshKey} memberId={memberId} />}
+
+        {/* Dialog de agendamento manual */}
+        {memberId && organizationId && (
+          <NewBookingDialog
+            open={newBookingOpen}
+            onOpenChange={setNewBookingOpen}
+            defaultMemberId={memberId}
+            isAdmin={isAdmin}
+            members={membersList.map((m) => ({ id: m.id, name: m.name }))}
+            onCreated={() => setRefreshKey((k) => k + 1)}
+          />
+        )}
 
         {/* Calendar */}
         {organizationId && (
