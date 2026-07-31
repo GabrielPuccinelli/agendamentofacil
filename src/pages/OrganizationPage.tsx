@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { MapPin, Clock, Camera, Phone, ArrowRight, Users, Scissors, Building2 } from 'lucide-react';
 import { PublicLoading } from '../components/LoadingScreen';
+import { useDocumentMeta } from '../lib/useDocumentMeta';
 
 type Organization = {
   id: string;
@@ -92,6 +93,12 @@ export default function OrganizationPage() {
     };
     fetchData();
   }, [organizationSlug]);
+
+  useDocumentMeta({
+    title: organization ? `${organization.name} — Agendamento online` : undefined,
+    description: organization?.description || `Agende online com ${organization?.name}. Escolha o serviço e o melhor horário.`,
+    image: organization?.cover_url || organization?.logo_url || null,
+  });
 
   if (loading) return <PublicLoading />;
 

@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Star } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { PublicLoading } from '../components/LoadingScreen';
+import { useDocumentMeta } from '../lib/useDocumentMeta';
 
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
@@ -235,6 +236,12 @@ export default function PublicPage() {
   };
 
   // --- Renderização ---
+  useDocumentMeta({
+    title: memberName ? `${memberName}${organization ? ` — ${organization.name}` : ''}` : undefined,
+    description: `Agende um horário com ${memberName}. Escolha o serviço e o melhor horário.`,
+    image: memberAvatar,
+  });
+
   if (loading) return <PublicLoading />;
 
   if (error && !organization) {

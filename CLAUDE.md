@@ -58,6 +58,7 @@ Tabelas: `organizations` (slug, logo_url, cover_url, description, whatsapp, addr
 
 - **Constraint `bookings_no_overlap`** (EXCLUDE/btree_gist): impede sobreposição de horário do mesmo member (status≠cancelled). INSERT conflitante → erro `23P01`; PublicPage trata com mensagem amigável.
 - `time_blocks` (bloqueios pontuais por data) + **`recurring_blocks`** (weekly: weekday 0-6, start/end `time`, expandidos em `get_busy_times` com tz `America/Sao_Paulo`). `organizations.buffer_minutes` estende as faixas ocupadas nos dois lados (aplicado no cálculo de slots do PublicPage).
+- Financeiro: `bookings.paid/payment_method/paid_at` (marcar pago no DayOverview); `members.commission_percent` (comissão no painel da empresa). `organizations.require_confirmation`.
 - **`bookings` NÃO tem leitura pública** (removida — vazava dados do cliente). Slots públicos usam o RPC `get_busy_times(member_id, from, to)` que só retorna faixas ocupadas (bookings + time_blocks, sem PII). Staff lê os seus; admin lê todos; staff faz UPDATE dos seus (confirmar/recusar).
 
 RPCs (SECURITY DEFINER, `search_path` fixado): `create_organization_and_admin`, `find_member_by_email`, `accept_invite`, `add_member_to_organization` (reaproveita linha órfã do onboarding), `get_booking_by_token` / `cancel_booking_by_token` / `reschedule_booking_by_token` / `get_busy_times` (públicas — token é o segredo / busy sem PII).
