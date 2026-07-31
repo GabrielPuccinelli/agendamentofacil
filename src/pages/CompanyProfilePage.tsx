@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import AppShell from '../components/AppShell';
 import PageHeader from '../components/PageHeader';
 import type { SidebarProps } from '../components/Sidebar';
+import { AppLoading } from '../components/LoadingScreen';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
@@ -117,16 +118,7 @@ export default function CompanyProfilePage() {
 
   const handleLogout = async () => { await supabase.auth.signOut(); };
 
-  if (loading || !sidebarProps || !org) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-slate-950">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-          <p className="text-indigo-400 text-sm">Carregando perfil...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading || !sidebarProps || !org) return <AppLoading />;
 
   return (
     <AppShell {...sidebarProps} onLogout={handleLogout}>

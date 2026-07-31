@@ -9,6 +9,7 @@ import ManageTimeBlocks from '../components/ManageTimeBlocks';
 import DayOverview from '../components/DayOverview';
 import GettingStarted from '../components/GettingStarted';
 import AppShell from '../components/AppShell';
+import { AppLoading } from '../components/LoadingScreen';
 import type { UserProfile, MemberLink } from '../components/Sidebar';
 
 const SectionDivider = ({ title }: { title: string }) => (
@@ -93,16 +94,7 @@ export default function DashboardPage() {
 
   const handleLogout = async () => { await supabase.auth.signOut(); };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-slate-950">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-          <p className="text-indigo-400 text-sm">Carregando dashboard...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading) return <AppLoading />;
 
   // Collaborator with no organization yet
   if (!organizationId) {

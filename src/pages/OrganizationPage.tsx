@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { MapPin, Clock, Camera, Phone, ArrowRight, Users, Scissors, Building2 } from 'lucide-react';
+import { PublicLoading } from '../components/LoadingScreen';
 
 type Organization = {
   id: string;
@@ -17,15 +18,6 @@ type Organization = {
 };
 type Member = { id: string; name: string; slug: string; avatar_url: string | null };
 type Service = { id: string; name: string; price: number; duration: number; category: string | null };
-
-const Spinner = () => (
-  <div className="flex justify-center items-center min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-violet-950">
-    <div className="flex flex-col items-center gap-4">
-      <div className="w-10 h-10 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-      <p className="text-indigo-300 text-sm">Carregando...</p>
-    </div>
-  </div>
-);
 
 const getInitials = (name: string) =>
   name.split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase()).join('');
@@ -101,7 +93,7 @@ export default function OrganizationPage() {
     fetchData();
   }, [organizationSlug]);
 
-  if (loading) return <Spinner />;
+  if (loading) return <PublicLoading />;
 
   if (error || !organization) {
     return (
