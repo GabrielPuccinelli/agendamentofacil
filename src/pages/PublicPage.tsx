@@ -134,27 +134,17 @@ export default function PublicPage() {
         setAvailableSlots([]);
         return;
       }
-      const [{ data: existingAppointments, error: appointmentsError }, { data: blocks }] = await Promise.all([
-        supabase
-          .from('bookings')
-          .select('start_time, end_time')
-          .eq('member_id', memberId)
-          .neq('status', 'cancelled')
-          .gte('start_time', `${dateStr}T00:00:00Z`)
-          .lte('end_time', `${dateStr}T23:59:59Z`),
-        supabase
-          .from('time_blocks')
-          .select('start_time, end_time')
-          .eq('member_id', memberId)
-          .lte('start_time', `${dateStr}T23:59:59Z`)
-          .gte('end_time', `${dateStr}T00:00:00Z`),
-      ]);
+      const { data: busyData, error: busyError } = await supabase.rpc('get_busy_times', {
+        p_member_id: memberId,
+        p_from: `${dateStr}T00:00:00Z`,
+        p_to: `${dateStr}T23:59:59Z`,
+      });
 
-      if (appointmentsError) {
+      if (busyError) {
         setAvailableSlots([]);
         return;
       }
-      const busy = [...(existingAppointments || []), ...(blocks || [])];
+      const busy = busyData || [];
       const now = new Date();
       const slots: string[] = [];
       const { start_time, end_time } = workHours;
@@ -166,7 +156,7 @@ export default function PublicPage() {
       while (currentSlotTime < endTime) {
         const slotEnd = addMinutes(currentSlotTime, duration);
         if (slotEnd > endTime) break;
-        const isOccupied = busy.some((appt) => {
+        const isOccupied = busy.some((appt: any) => {
           const apptStart = new Date(appt.start_time);
           const apptEnd = new Date(appt.end_time);
           return currentSlotTime < apptEnd && slotEnd > apptStart;
