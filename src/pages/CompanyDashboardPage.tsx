@@ -113,6 +113,7 @@ export default function CompanyDashboardPage() {
     ? 'clients'
     : 'overview';
   const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'services' | 'clients'>(initialTab);
+  const [clientSearch, setClientSearch] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -289,6 +290,31 @@ export default function CompanyDashboardPage() {
     }))
     .sort((a, b) => b.visits - a.visits || b.lastVisit.localeCompare(a.lastVisit));
   const recurringClients = clientStats.filter((c) => c.visits > 1).length;
+  const q = clientSearch.trim().toLowerCase();
+  const filteredClients = q
+    ? clientStats.filter((c) => c.name.toLowerCase().includes(q) || (c.phone || '').includes(q))
+    : clientStats;
+
+  const exportClientsCsv = () => {
+    const header = ['Nome', 'Telefone', 'Visitas', 'Ultima visita', 'Profissional frequente', 'Total gasto'];
+    const rows = clientStats.map((c) => [
+      c.name,
+      c.phone,
+      String(c.visits),
+      new Date(c.lastVisit).toLocaleDateString('pt-BR'),
+      c.favoriteMember,
+      c.revenue.toFixed(2).replace('.', ','),
+    ]);
+    const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const csv = [header, ...rows].map((r) => r.map(escape).join(';')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `clientes-${orgSlug || 'empresa'}-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
   const newClientsThisMonth = clientStats.filter((c) =>
     !bookings.some((b) =>
       b.status !== 'cancelled'
@@ -543,10 +569,34 @@ export default function CompanyDashboardPage() {
             </div>
 
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-              <h2 className="text-lg font-bold text-gray-900 mb-1">Histórico de Clientes</h2>
-              <p className="text-xs text-gray-400 mb-5">Gerado automaticamente a partir dos agendamentos</p>
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Histórico de Clientes</h2>
+                  <p className="text-xs text-gray-400">Gerado automaticamente a partir dos agendamentos</p>
+                </div>
+                {clientStats.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={clientSearch}
+                      onChange={(e) => setClientSearch(e.target.value)}
+                      placeholder="Buscar por nome ou telefone…"
+                      className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all w-full sm:w-56"
+                    />
+                    <button
+                      onClick={exportClientsCsv}
+                      className="shrink-0 flex items-center gap-1.5 bg-white border border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600 text-sm font-medium px-3 py-2 rounded-xl transition-all"
+                      title="Exportar CSV"
+                    >
+                      ↓ CSV
+                    </button>
+                  </div>
+                )}
+              </div>
               {clientStats.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-8">Nenhum cliente ainda. Compartilhe sua página pública!</p>
+              ) : filteredClients.length === 0 ? (
+                <p className="text-gray-400 text-sm text-center py-8">Nenhum cliente encontrado para “{clientSearch}”.</p>
               ) : (
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
@@ -561,7 +611,7 @@ export default function CompanyDashboardPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {clientStats.map((c) => (
+                      {filteredClients.map((c) => (
                         <tr key={c.phone || c.name} className="border-b border-gray-50 last:border-0">
                           <td className="py-3 pr-4">
                             <div className="flex items-center gap-2.5">
