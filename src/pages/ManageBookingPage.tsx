@@ -47,6 +47,7 @@ export default function ManageBookingPage() {
   const [reviewComment, setReviewComment] = useState('');
   const [reviewSaving, setReviewSaving] = useState(false);
   const [reviewDone, setReviewDone] = useState(false);
+  const [reviewSkipped, setReviewSkipped] = useState(() => localStorage.getItem(`review_skip_${token}`) === '1');
 
   const load = async () => {
     const { data, error } = await supabase.rpc('get_booking_by_token', { p_token: token });
@@ -270,7 +271,7 @@ export default function ManageBookingPage() {
         )}
 
         {/* Avaliação: só depois do atendimento, se não cancelado e ainda não avaliado */}
-        {past && !cancelled && !booking.already_reviewed && !reviewDone && (
+        {past && !cancelled && !booking.already_reviewed && !reviewDone && !reviewSkipped && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
             <h2 className="font-bold text-gray-900 mb-1">Como foi seu atendimento?</h2>
             <p className="text-xs text-gray-400 mb-4">Sua avaliação ajuda outros clientes.</p>
@@ -298,6 +299,12 @@ export default function ManageBookingPage() {
             <Button onClick={handleReview} disabled={!rating || reviewSaving} className="w-full mt-3 gradient-brand shadow-md shadow-indigo-500/20">
               {reviewSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Enviar avaliação'}
             </Button>
+            <button
+              onClick={() => { localStorage.setItem(`review_skip_${token}`, '1'); setReviewSkipped(true); }}
+              className="w-full mt-2 text-xs text-gray-400 hover:text-gray-600 py-2 transition-colors"
+            >
+              Não quero avaliar
+            </button>
           </div>
         )}
 
