@@ -52,6 +52,10 @@ export default function PublicPage() {
   const [clientEmail, setClientEmail] = useState('');
   const [honeypot, setHoneypot] = useState('');
   const formOpenedAt = useRef<number>(Date.now());
+  const [waitName, setWaitName] = useState('');
+  const [waitPhone, setWaitPhone] = useState('');
+  const [waitSaving, setWaitSaving] = useState(false);
+  const [waitlistDone, setWaitlistDone] = useState(false);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [manageToken, setManageToken] = useState<string | null>(null);
@@ -244,6 +248,25 @@ export default function PublicPage() {
     } finally {
       setBookingLoading(false);
     }
+  };
+
+  const handleJoinWaitlist = async () => {
+    if (waitName.trim().length < 2 || waitPhone.replace(/\D/g, '').length < 8) {
+      toast.error('Informe nome e WhatsApp válidos.');
+      return;
+    }
+    if (!memberId) return;
+    setWaitSaving(true);
+    const { error } = await supabase.from('waitlist').insert({
+      member_id: memberId,
+      service_id: selectedService?.id || null,
+      client_name: waitName.trim(),
+      client_phone: waitPhone.trim(),
+    });
+    setWaitSaving(false);
+    if (error) { toast.error('Não foi possível entrar na lista.'); return; }
+    setWaitlistDone(true);
+    toast.success('Você entrou na lista de espera!');
   };
 
   // --- Renderização ---
@@ -459,9 +482,26 @@ export default function PublicPage() {
                   {selectedDate ? format(selectedDate, 'PPP', { locale: ptBR }) : 'Selecione um dia'}
                 </p>
                 {availableSlots.length === 0 ? (
-                  <p className="text-center text-gray-400 text-sm py-6">
-                    Nenhum horário disponível para este dia.
-                  </p>
+                  <div className="text-center py-4">
+                    <p className="text-gray-400 text-sm mb-3">Nenhum horário disponível para este dia.</p>
+                    {!waitlistDone ? (
+                      <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-left">
+                        <p className="text-xs font-semibold text-indigo-800 mb-1">Entrar na lista de espera</p>
+                        <p className="text-[11px] text-indigo-500 mb-3">Avisamos {memberName} do seu interesse. Ele entra em contato quando abrir horário.</p>
+                        <div className="space-y-2">
+                          <input type="text" placeholder="Seu nome" value={waitName} onChange={(e) => setWaitName(e.target.value)} className="block w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                          <input type="tel" placeholder="Seu WhatsApp" value={waitPhone} onChange={(e) => setWaitPhone(e.target.value)} className="block w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                          <Button onClick={handleJoinWaitlist} disabled={waitSaving} className="w-full gradient-brand">
+                            {waitSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Avisar meu interesse'}
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-sm text-emerald-700 font-medium">
+                        ✓ Você está na lista de espera!
+                      </div>
+                    )}
+                  </div>
                 ) : (
                   <div className="grid grid-cols-3 gap-2">
                     {availableSlots.map((slot) => (
