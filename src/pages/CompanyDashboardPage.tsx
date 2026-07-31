@@ -7,6 +7,10 @@ import ManageServices from '../components/ManageServices';
 import ManageMembers from '../components/ManageMembers';
 import { AppLoading } from '../components/LoadingScreen';
 import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { toast } from 'sonner';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Button } from '@/components/ui/button';
+import { StickyNote, Loader2 } from 'lucide-react';
 
 type Booking = {
   id: string;
@@ -100,6 +104,10 @@ export default function CompanyDashboardPage() {
     : 'overview';
   const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'services' | 'clients'>(initialTab);
   const [clientSearch, setClientSearch] = useState('');
+  const [noteClient, setNoteClient] = useState<{ name: string; phone: string } | null>(null);
+  const [noteText, setNoteText] = useState('');
+  const [noteSaving, setNoteSaving] = useState(false);
+  const [notedPhones, setNotedPhones] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const load = async () => {
@@ -202,6 +210,43 @@ export default function CompanyDashboardPage() {
   }, [navigate]);
 
   const handleLogout = async () => { await supabase.auth.signOut(); };
+
+  // Telefones que já têm anotação (para mostrar o indicador)
+  useEffect(() => {
+    if (!orgId) return;
+    supabase.from('client_notes').select('client_phone').eq('organization_id', orgId)
+      .then(({ data }) => setNotedPhones(new Set((data || []).map((n) => n.client_phone))));
+  }, [orgId]);
+
+  const openNote = async (name: string, phone: string) => {
+    const digits = phone.replace(/\D/g, '');
+    setNoteClient({ name, phone: digits });
+    setNoteText('');
+    const { data } = await supabase
+      .from('client_notes').select('note')
+      .eq('organization_id', orgId).eq('client_phone', digits).maybeSingle();
+    setNoteText(data?.note || '');
+  };
+
+  const saveNote = async () => {
+    if (!noteClient) return;
+    setNoteSaving(true);
+    const { error } = await supabase.from('client_notes').upsert({
+      organization_id: orgId,
+      client_phone: noteClient.phone,
+      note: noteText.trim() || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'organization_id,client_phone' });
+    setNoteSaving(false);
+    if (error) { toast.error('Não foi possível salvar a anotação.'); return; }
+    setNotedPhones((prev) => {
+      const next = new Set(prev);
+      if (noteText.trim()) next.add(noteClient.phone); else next.delete(noteClient.phone);
+      return next;
+    });
+    setNoteClient(null);
+    toast.success('Anotação salva!');
+  };
 
   if (loading || !sidebarProps) return <AppLoading />;
 
@@ -619,16 +664,29 @@ export default function CompanyDashboardPage() {
                             R$ {c.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
                           </td>
                           <td className="py-3 text-right">
-                            {c.phone && (
-                              <a
-                                href={`https://wa.me/55${c.phone.replace(/\D/g, '')}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
-                              >
-                                WhatsApp ↗
-                              </a>
-                            )}
+                            <div className="flex items-center justify-end gap-2">
+                              {c.phone && (
+                                <button
+                                  onClick={() => openNote(c.name, c.phone)}
+                                  title="Anotações"
+                                  className={`inline-flex items-center gap-1 text-xs font-medium transition-colors ${
+                                    notedPhones.has(c.phone.replace(/\D/g, '')) ? 'text-indigo-600' : 'text-gray-400 hover:text-indigo-600'
+                                  }`}
+                                >
+                                  <StickyNote className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {c.phone && (
+                                <a
+                                  href={`https://wa.me/55${c.phone.replace(/\D/g, '')}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
+                                >
+                                  WhatsApp ↗
+                                </a>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -787,6 +845,28 @@ export default function CompanyDashboardPage() {
           </>
         )}
       </div>
+
+      {/* Diálogo de anotações do cliente */}
+      <Dialog open={!!noteClient} onOpenChange={(v) => !v && setNoteClient(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Anotações · {noteClient?.name}</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-gray-400 -mt-2">Visível apenas para a sua equipe (preferências, alergias, observações).</p>
+          <textarea
+            rows={5}
+            value={noteText}
+            onChange={(e) => setNoteText(e.target.value)}
+            placeholder="Ex.: prefere horário à tarde; alérgica a X; cliente antigo…"
+            className="w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+          />
+          <div className="flex justify-end">
+            <Button onClick={saveNote} disabled={noteSaving} className="gradient-brand shadow-md shadow-indigo-500/20">
+              {noteSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar anotação'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </AppShell>
   );
 }
