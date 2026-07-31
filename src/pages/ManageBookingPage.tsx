@@ -71,19 +71,15 @@ export default function ManageBookingPage() {
       const work = availability.find((a) => a.day_of_week === date.getDay());
       if (!work) { setSlots([]); return; }
 
-      const [{ data: bookings }, { data: blocks }] = await Promise.all([
-        supabase.from('bookings').select('id, start_time, end_time')
-          .eq('member_id', booking.member_id).neq('status', 'cancelled')
-          .gte('start_time', `${newDate}T00:00:00Z`).lte('end_time', `${newDate}T23:59:59Z`),
-        supabase.from('time_blocks').select('start_time, end_time')
-          .eq('member_id', booking.member_id)
-          .lte('start_time', `${newDate}T23:59:59Z`).gte('end_time', `${newDate}T00:00:00Z`),
-      ]);
-
-      const busy = [
-        ...(bookings || []).filter((b: any) => b.id !== booking.id),
-        ...(blocks || []),
-      ];
+      const { data: busyData } = await supabase.rpc('get_busy_times', {
+        p_member_id: booking.member_id,
+        p_from: `${newDate}T00:00:00Z`,
+        p_to: `${newDate}T23:59:59Z`,
+      });
+      // O próprio agendamento aparece como ocupado; como o RPC não retorna id,
+      // relaxamos em 1 slot removendo exatamente a faixa atual deste booking.
+      const busy = (busyData || []).filter((b: any) =>
+        !(b.start_time === booking.start_time && b.end_time === booking.end_time));
       const duration = booking.service_duration || 30;
       const [sh, sm] = work.start_time.split(':').map(Number);
       const [eh, em] = work.end_time.split(':').map(Number);
