@@ -6,7 +6,7 @@ import { ConfirmButton } from '../components/ConfirmButton';
 import { toast } from 'sonner';
 import { format, addMinutes, setHours, setMinutes, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { CalendarCheck, CalendarX, CalendarClock, Loader2, ArrowLeft } from 'lucide-react';
+import { CalendarCheck, CalendarX, CalendarClock, Loader2, ArrowLeft, Star } from 'lucide-react';
 
 type BookingInfo = {
   id: string;
@@ -21,6 +21,7 @@ type BookingInfo = {
   member_slug: string;
   organization_name: string | null;
   organization_slug: string | null;
+  already_reviewed: boolean;
 };
 
 type Availability = { day_of_week: number; start_time: string; end_time: string };
@@ -39,6 +40,13 @@ export default function ManageBookingPage() {
   const [slots, setSlots] = useState<string[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  // Avaliação
+  const [rating, setRating] = useState(0);
+  const [hoverRating, setHoverRating] = useState(0);
+  const [reviewComment, setReviewComment] = useState('');
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const [reviewDone, setReviewDone] = useState(false);
 
   const load = async () => {
     const { data, error } = await supabase.rpc('get_booking_by_token', { p_token: token });
@@ -127,6 +135,18 @@ export default function ManageBookingPage() {
     setRescheduling(false);
     setNewDate('');
     load();
+  };
+
+  const handleReview = async () => {
+    if (!rating) return;
+    setReviewSaving(true);
+    const { error } = await supabase.rpc('submit_review_by_token', {
+      p_token: token, p_rating: rating, p_comment: reviewComment,
+    });
+    setReviewSaving(false);
+    if (error) { toast.error('Não foi possível enviar a avaliação.'); return; }
+    setReviewDone(true);
+    toast.success('Obrigado pela avaliação!');
   };
 
   const inputCls = 'block w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all';
@@ -246,6 +266,44 @@ export default function ManageBookingPage() {
                 {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : `Confirmar para ${format(new Date(`${newDate}T12:00:00`), 'dd/MM')} às ${selectedSlot}`}
               </Button>
             )}
+          </div>
+        )}
+
+        {/* Avaliação: só depois do atendimento, se não cancelado e ainda não avaliado */}
+        {past && !cancelled && !booking.already_reviewed && !reviewDone && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-4">
+            <h2 className="font-bold text-gray-900 mb-1">Como foi seu atendimento?</h2>
+            <p className="text-xs text-gray-400 mb-4">Sua avaliação ajuda outros clientes.</p>
+            <div className="flex items-center gap-1 mb-4">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button
+                  key={n}
+                  onMouseEnter={() => setHoverRating(n)}
+                  onMouseLeave={() => setHoverRating(0)}
+                  onClick={() => setRating(n)}
+                  className="transition-transform hover:scale-110"
+                  aria-label={`${n} estrela${n > 1 ? 's' : ''}`}
+                >
+                  <Star className={`w-8 h-8 ${(hoverRating || rating) >= n ? 'text-amber-400 fill-amber-400' : 'text-gray-200'}`} />
+                </button>
+              ))}
+            </div>
+            <textarea
+              rows={3}
+              value={reviewComment}
+              onChange={(e) => setReviewComment(e.target.value)}
+              placeholder="Conte como foi (opcional)"
+              className={inputCls}
+            />
+            <Button onClick={handleReview} disabled={!rating || reviewSaving} className="w-full mt-3 gradient-brand shadow-md shadow-indigo-500/20">
+              {reviewSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Enviar avaliação'}
+            </Button>
+          </div>
+        )}
+
+        {(reviewDone || (past && !cancelled && booking.already_reviewed)) && (
+          <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 mb-4 text-center text-sm text-emerald-700 font-medium">
+            ✓ Obrigado por avaliar seu atendimento!
           </div>
         )}
 

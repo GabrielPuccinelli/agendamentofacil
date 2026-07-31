@@ -4,6 +4,7 @@ import { Menu, CalendarDays } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from '@/components/ui/sheet';
 import { SidebarContent } from '@/components/Sidebar';
 import type { SidebarProps } from '@/components/Sidebar';
+import NotificationBell from '@/components/NotificationBell';
 import { cn } from '@/lib/utils';
 
 type AppShellProps = SidebarProps & {
@@ -52,6 +53,14 @@ const AppShell: React.FC<AppShellProps> = ({ children, mainClassName, ...sidebar
             </div>
             <span className="text-white font-bold text-sm">AgendaFácil</span>
           </Link>
+          <div className="ml-auto [&_button]:text-slate-300 [&_button:hover]:bg-slate-800">
+            <NotificationBell />
+          </div>
+        </header>
+
+        {/* Desktop top bar (sino) */}
+        <header className="hidden lg:flex items-center justify-end h-14 px-8 bg-white border-b border-gray-100">
+          <NotificationBell />
         </header>
 
         <main className={cn('flex-1 p-4 sm:p-6 md:p-8 overflow-auto min-w-0', mainClassName)}>

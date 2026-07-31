@@ -65,6 +65,8 @@ Edge Functions (precisam de `RESEND_API_KEY`; sem ela agenda funciona mas não e
 - `notify-booking` — trigger no INSERT de bookings; avisa profissional+dono e confirma ao cliente (se deu e-mail).
 - `send-reminders` — chamada por **pg_cron** de hora em hora; lembra clientes ~24h antes (usa `reminder_sent_at`). Opcional: `NOTIFY_APP_URL` (links de prod), `NOTIFY_FROM_EMAIL`, `CRON_SECRET`.
 
+Tabela `reviews` (booking_id unique, member_id, rating 1-5, comment, client_name) — leitura pública; envio via RPC `submit_review_by_token` (só agendamento passado, não cancelado). `get_booking_by_token` retorna `already_reviewed`. Média exibida em PublicPage; cliente avalia no ManageBookingPage.
+
 Storage: bucket público `public-assets` (logos/capas) e `avatars`. **Upload usa upsert → exige policy de SELECT** (existe `Auth read public-assets` para authenticated). Listagem pública fica bloqueada de propósito.
 
 ## Convenções e armadilhas
