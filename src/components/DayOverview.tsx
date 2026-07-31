@@ -157,12 +157,14 @@ export default function DayOverview({ memberId }: Props) {
           icon={<CalendarCheck className="w-5 h-5" />}
           label="Agendamentos hoje"
           value={todayBookings.length}
+          countTo={todayBookings.length}
           accent="bg-indigo-50 text-indigo-600"
         />
         <StatCard
           icon={<CalendarClock className="w-5 h-5" />}
           label="Próximos 7 dias"
           value={bookings.length}
+          countTo={bookings.length}
           accent="bg-violet-50 text-violet-600"
         />
         <StatCard

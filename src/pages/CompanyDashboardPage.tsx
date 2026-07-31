@@ -6,6 +6,7 @@ import type { SidebarProps } from '../components/Sidebar';
 import ManageServices from '../components/ManageServices';
 import ManageMembers from '../components/ManageMembers';
 import { AppLoading } from '../components/LoadingScreen';
+import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 
 type Booking = {
   id: string;
@@ -73,23 +74,6 @@ const BarRow = ({ name, value, max, sub, color = 'gradient-brand' }: {
     </div>
     <div className="text-sm font-bold text-gray-800 w-8 text-right shrink-0">{value}</div>
     <div className="text-xs text-gray-400 w-24 text-right shrink-0">{sub}</div>
-  </div>
-);
-
-// ── Month bar ──────────────────────────────────────────────────────────────────
-const MonthBar = ({ label, value, max, revenue }: { label: string; value: number; max: number; revenue: number }) => (
-  <div className="flex flex-col items-center gap-1">
-    <div className="text-xs text-emerald-600 font-semibold">
-      {revenue > 0 ? `R$${(revenue / 1000).toFixed(1)}k` : ''}
-    </div>
-    <div className="relative w-10 bg-gray-100 rounded-t-lg overflow-hidden" style={{ height: '80px' }}>
-      <div
-        className="absolute bottom-0 left-0 right-0 gradient-brand rounded-t-lg transition-all duration-700"
-        style={{ height: max > 0 ? `${(value / max) * 100}%` : '0%' }}
-      />
-    </div>
-    <div className="text-xs text-gray-700 font-semibold">{value}</div>
-    <div className="text-xs text-gray-400">{label}</div>
   </div>
 );
 
@@ -245,7 +229,6 @@ export default function CompanyDashboardPage() {
   const avgTicket = totalBookings > 0 ? totalRevenue / totalBookings : 0;
   const cancellationRate = bookings.length > 0 ? ((cancelledTotal / bookings.length) * 100).toFixed(0) : '0';
 
-  const maxMonthBookings = Math.max(...monthData.map((m) => m.bookings), 1);
   const maxSvcRevenue = Math.max(...serviceStats.map((s) => s.revenue), 1);
 
   const recentBookings = bookings.slice(0, 8);
@@ -436,26 +419,33 @@ export default function CompanyDashboardPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
               {/* Monthly trend */}
               <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center justify-between mb-4">
                   <div>
                     <h2 className="text-lg font-bold text-gray-900">Tendência Mensal</h2>
-                    <p className="text-xs text-gray-400 mt-0.5">Agendamentos confirmados por mês</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Agendamentos e faturamento por mês</p>
                   </div>
                   <div className="flex items-center gap-3 text-xs">
-                    <span className="flex items-center gap-1 text-gray-400">
-                      <div className="w-3 h-3 rounded gradient-brand" />
-                      Agendamentos
-                    </span>
+                    <span className="flex items-center gap-1 text-gray-400"><span className="w-3 h-3 rounded bg-indigo-500" /> Agend.</span>
+                    <span className="flex items-center gap-1 text-gray-400"><span className="w-3 h-3 rounded bg-emerald-500" /> R$</span>
                   </div>
                 </div>
                 {monthData.every((m) => m.bookings === 0) ? (
-                  <div className="flex items-center justify-center h-24 text-gray-300 text-sm">Nenhum dado ainda</div>
+                  <div className="flex items-center justify-center h-48 text-gray-300 text-sm">Nenhum dado ainda</div>
                 ) : (
-                  <div className="flex items-end justify-around gap-2">
-                    {monthData.map((m) => (
-                      <MonthBar key={m.key} label={m.label} value={m.bookings} max={maxMonthBookings} revenue={m.revenue} />
-                    ))}
-                  </div>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <ComposedChart data={monthData} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f1f1f4" vertical={false} />
+                      <XAxis dataKey="label" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} />
+                      <YAxis yAxisId="left" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} allowDecimals={false} />
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 11, fill: '#9ca3af' }} tickLine={false} axisLine={false} hide />
+                      <Tooltip
+                        contentStyle={{ borderRadius: 12, border: '1px solid #eee', fontSize: 12 }}
+                        formatter={(v: any, name: any) => name === 'revenue' ? [`R$ ${Number(v).toLocaleString('pt-BR')}`, 'Faturamento'] : [v, 'Agendamentos']}
+                      />
+                      <Bar yAxisId="left" dataKey="bookings" fill="#6366f1" radius={[6, 6, 0, 0]} maxBarSize={36} />
+                      <Line yAxisId="right" type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} />
+                    </ComposedChart>
+                  </ResponsiveContainer>
                 )}
               </div>
 
