@@ -19,6 +19,7 @@ type Organization = { id: string; name: string; require_confirmation?: boolean; 
 type Service = { id: string; name: string; duration: number; price: number; };
 type Availability = { day_of_week: number; start_time: string; end_time: string; };
 type Review = { rating: number; comment: string | null; client_name: string | null; created_at: string };
+type PortfolioItem = { id: string; image_url: string; caption: string | null };
 
 const StepHeader = ({ number, title, active }: { number: string; title: string; active: boolean }) => (
   <div className={`flex items-center gap-3 mb-5 transition-opacity duration-300 ${active ? 'opacity-100' : 'opacity-60'}`}>
@@ -41,6 +42,7 @@ export default function PublicPage() {
   const [memberName, setMemberName] = useState<string>('');
   const [memberAvatar, setMemberAvatar] = useState<string | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
@@ -101,6 +103,14 @@ export default function PublicPage() {
           .eq('member_id', member.id)
           .order('created_at', { ascending: false })
           .then(({ data }) => setReviews(data || []));
+
+        // Portfólio do profissional
+        supabase
+          .from('portfolio_items')
+          .select('id, image_url, caption')
+          .eq('member_id', member.id)
+          .order('created_at', { ascending: false })
+          .then(({ data }) => setPortfolio(data || []));
 
         const { data: servicesData, error: servicesError } = await supabase
           .from('member_services')
@@ -561,6 +571,26 @@ export default function PublicPage() {
               </Button>
             </form>
           </motion.div>
+        )}
+
+        {/* Portfólio */}
+        {portfolio.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">Trabalhos</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {portfolio.map((p) => (
+                <a
+                  key={p.id}
+                  href={p.image_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="aspect-square rounded-xl overflow-hidden border border-gray-100 group"
+                >
+                  <img src={p.image_url} alt={p.caption || 'Trabalho'} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                </a>
+              ))}
+            </div>
+          </div>
         )}
 
         {/* Avaliações */}

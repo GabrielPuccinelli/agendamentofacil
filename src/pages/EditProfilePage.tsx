@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabaseClient';
 import { useNavigate, Link } from 'react-router-dom';
 import AppShell from '../components/AppShell';
 import { AppLoading } from '../components/LoadingScreen';
+import ManagePortfolio from '../components/ManagePortfolio';
 import type { UserProfile, MemberLink } from '../components/Sidebar';
 
 type Tab = 'personal' | 'address' | 'documents';
@@ -102,6 +103,7 @@ const EditProfilePage: React.FC = () => {
 
   // Sidebar data
   const [isAdmin, setIsAdmin] = useState(false);
+  const [memberDbId, setMemberDbId] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile>(null);
   const [membersList, setMembersList] = useState<MemberLink[]>([]);
   const [organizationSlug, setOrganizationSlug] = useState<string | null>(null);
@@ -125,6 +127,7 @@ const EditProfilePage: React.FC = () => {
       if (error || !member) { navigate('/dashboard'); return; }
 
       setIsAdmin(member.role === 'admin');
+      setMemberDbId(member.id);
       setName(member.name || '');
       setLastName(member.last_name || '');
       setPhone(member.phone || '');
@@ -434,6 +437,13 @@ const EditProfilePage: React.FC = () => {
               </button>
             </div>
           </form>
+
+          {/* Portfólio */}
+          {memberDbId && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mt-6">
+              <ManagePortfolio memberId={memberDbId} />
+            </div>
+          )}
         </div>
     </AppShell>
   );
