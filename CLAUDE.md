@@ -69,6 +69,8 @@ Edge Functions (precisam de `RESEND_API_KEY`; sem ela agenda funciona mas não e
 
 Tabela `reviews` (booking_id unique, member_id, rating 1-5, comment, client_name) — leitura pública; envio via RPC `submit_review_by_token` (só agendamento passado, não cancelado). `get_booking_by_token` retorna `already_reviewed`. Média exibida em PublicPage; cliente avalia no ManageBookingPage.
 
+Tabela `portfolio_items` (member_id, image_url, caption) — leitura pública; gerenciada no Editar Perfil (`ManagePortfolio`), galeria "Trabalhos" na PublicPage. Tabela `client_notes` (organization_id + client_phone unique, note) — **privada** (sem leitura pública), editada na aba Clientes. `bookings.created_at` (ordena o sino de notificações; itens clicáveis abrem detalhe).
+
 Storage: bucket público `public-assets` (logos/capas) e `avatars`. **Upload usa upsert → exige policy de SELECT** (existe `Auth read public-assets` para authenticated). Listagem pública fica bloqueada de propósito.
 
 ## Convenções e armadilhas
