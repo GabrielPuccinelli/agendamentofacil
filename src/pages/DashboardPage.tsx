@@ -6,6 +6,7 @@ import ManageAvailability from '../components/ManageAvailability';
 import AgendaCalendar from '../components/AgendaCalendar';
 import ManageMembers from '../components/ManageMembers';
 import ManageTimeBlocks from '../components/ManageTimeBlocks';
+import ManageWaitlist from '../components/ManageWaitlist';
 import DayOverview from '../components/DayOverview';
 import GettingStarted from '../components/GettingStarted';
 import NewBookingDialog from '../components/NewBookingDialog';
@@ -184,6 +185,13 @@ export default function DashboardPage() {
             organizationSlug={organizationSlug}
             memberSlug={memberSlug}
           />
+        )}
+
+        {/* Lista de espera (só aparece se houver gente) */}
+        {memberId && (
+          <div className="mb-6" key={`wait-${refreshKey}`}>
+            <ManageWaitlist memberId={memberId} />
+          </div>
         )}
 
         {/* Visão do dia: métricas + agenda de hoje + próximos dias */}
