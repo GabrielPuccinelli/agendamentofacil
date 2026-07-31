@@ -7,6 +7,7 @@ import AgendaCalendar from '../components/AgendaCalendar';
 import ManageMembers from '../components/ManageMembers';
 import ManageTimeBlocks from '../components/ManageTimeBlocks';
 import DayOverview from '../components/DayOverview';
+import GettingStarted from '../components/GettingStarted';
 import AppShell from '../components/AppShell';
 import type { UserProfile, MemberLink } from '../components/Sidebar';
 
@@ -167,6 +168,17 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
+
+        {/* Checklist de primeiros passos */}
+        {memberId && organizationId && (
+          <GettingStarted
+            isAdmin={isAdmin}
+            memberId={memberId}
+            organizationId={organizationId}
+            organizationSlug={organizationSlug}
+            memberSlug={memberSlug}
+          />
+        )}
 
         {/* Visão do dia: métricas + agenda de hoje + próximos dias */}
         {memberId && <DayOverview memberId={memberId} />}

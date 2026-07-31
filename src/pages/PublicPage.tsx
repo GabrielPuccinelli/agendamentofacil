@@ -11,7 +11,7 @@ import 'react-day-picker/dist/style.css';
 import { ptBR } from 'date-fns/locale';
 import { format, addMinutes, setHours, setMinutes } from 'date-fns';
 
-type Organization = { id: string; name: string; };
+type Organization = { id: string; name: string; require_confirmation?: boolean; };
 type Service = { id: string; name: string; duration: number; price: number; };
 type Availability = { day_of_week: number; start_time: string; end_time: string; };
 
@@ -50,9 +50,11 @@ export default function PublicPage() {
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
+  const [clientEmail, setClientEmail] = useState('');
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [manageToken, setManageToken] = useState<string | null>(null);
+  const [pendingBooking, setPendingBooking] = useState(false);
   const [manageLinkCopied, setManageLinkCopied] = useState(false);
 
   // --- 1. Buscar dados iniciais ---
@@ -70,7 +72,7 @@ export default function PublicPage() {
 
         const { data: orgData, error: orgError } = await supabase
           .from('organizations')
-          .select('id, name')
+          .select('id, name, require_confirmation')
           .eq('slug', organizationSlug)
           .single();
 
@@ -88,7 +90,7 @@ export default function PublicPage() {
 
         const member = membersData[0];
 
-        setOrganization({ id: orgData.id, name: orgData.name });
+        setOrganization({ id: orgData.id, name: orgData.name, require_confirmation: orgData.require_confirmation });
         setMemberId(member.id);
         setMemberName(member.name);
         setMemberAvatar(member.avatar_url || null);
@@ -191,18 +193,32 @@ export default function PublicPage() {
       const [startH, startM] = selectedSlot.split(':').map(Number);
       const startAt = setMinutes(setHours(selectedDate, startH), startM);
       const endAt = addMinutes(startAt, selectedService.duration);
+      const status = organization?.require_confirmation ? 'pending' : 'confirmed';
       const { data: created, error: insertError } = await supabase.from('bookings').insert({
         member_id: memberId,
         service_id: selectedService.id,
         client_name: clientName,
         client_phone: clientPhone,
+        client_email: clientEmail.trim() || null,
         start_time: startAt.toISOString(),
         end_time: endAt.toISOString(),
+        status,
       }).select('manage_token').single();
-      if (insertError) throw insertError;
+      if (insertError) {
+        // Constraint de sobreposição → alguém pegou o horário primeiro
+        if (insertError.code === '23P01' || insertError.message?.includes('bookings_no_overlap')) {
+          setError('Esse horário acabou de ser reservado por outra pessoa. Escolha outro, por favor.');
+          toast.error('Horário indisponível — escolha outro.');
+          setAvailableSlots((slots) => slots.filter((s) => s !== selectedSlot));
+          setSelectedSlot(null);
+          return;
+        }
+        throw insertError;
+      }
       setManageToken(created?.manage_token || null);
+      setPendingBooking(status === 'pending');
       setBookingSuccess(true);
-      toast.success('Agendamento confirmado!');
+      toast.success(status === 'pending' ? 'Pedido de agendamento enviado!' : 'Agendamento confirmado!');
       setAvailableSlots((slots) => slots.filter((s) => s !== selectedSlot));
     } catch (err: any) {
       console.error(err);
@@ -246,13 +262,16 @@ export default function PublicPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-3">Agendado!</h1>
+          <h1 className="text-3xl font-bold text-gray-900 mb-3">{pendingBooking ? 'Pedido enviado!' : 'Agendado!'}</h1>
           <p className="text-gray-500 leading-relaxed">
             Obrigado, <strong>{clientName}</strong>! Seu horário com{' '}
             <strong>{memberName}</strong> para{' '}
             <strong>{selectedService?.name}</strong> no dia{' '}
             <strong>{selectedDate ? format(selectedDate, 'dd/MM/yyyy') : ''}</strong> às{' '}
-            <strong>{selectedSlot}</strong> está confirmado.
+            <strong>{selectedSlot}</strong>{' '}
+            {pendingBooking
+              ? 'foi solicitado. Você receberá a confirmação do profissional em breve.'
+              : 'está confirmado.'}
           </p>
           {manageToken && (
             <div className="mt-6 bg-indigo-50 border border-indigo-100 rounded-2xl p-4 text-left">
@@ -284,9 +303,11 @@ export default function PublicPage() {
               setBookingSuccess(false);
               setClientName('');
               setClientPhone('');
+              setClientEmail('');
               setSelectedService(null);
               setSelectedSlot(null);
               setManageToken(null);
+              setPendingBooking(false);
             }}
             className="mt-8 w-full gradient-brand text-white font-bold py-3 px-6 rounded-2xl hover:opacity-90 transition-all duration-200 hover:shadow-lg hover:shadow-indigo-500/30"
           >
@@ -458,6 +479,19 @@ export default function PublicPage() {
                   value={clientPhone}
                   onChange={(e) => setClientPhone(e.target.value)}
                   placeholder="(XX) XXXXX-XXXX"
+                  className="block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 text-sm"
+                />
+              </div>
+              <div>
+                <label htmlFor="clientEmail" className="block text-sm font-medium text-gray-700 mb-1.5">
+                  Seu E-mail <span className="text-gray-400 font-normal">(opcional — para receber lembrete)</span>
+                </label>
+                <input
+                  type="email"
+                  id="clientEmail"
+                  value={clientEmail}
+                  onChange={(e) => setClientEmail(e.target.value)}
+                  placeholder="voce@email.com"
                   className="block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 text-sm"
                 />
               </div>
