@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Star } from 'lucide-react';
 
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
@@ -14,6 +14,7 @@ import { format, addMinutes, setHours, setMinutes } from 'date-fns';
 type Organization = { id: string; name: string; require_confirmation?: boolean; };
 type Service = { id: string; name: string; duration: number; price: number; };
 type Availability = { day_of_week: number; start_time: string; end_time: string; };
+type Review = { rating: number; comment: string | null; client_name: string | null; created_at: string };
 
 const Spinner = ({ label }: { label: string }) => (
   <div className="flex justify-center items-center min-h-screen bg-gray-50">
@@ -44,6 +45,7 @@ export default function PublicPage() {
   const [memberId, setMemberId] = useState<string | null>(null);
   const [memberName, setMemberName] = useState<string>('');
   const [memberAvatar, setMemberAvatar] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
@@ -51,6 +53,8 @@ export default function PublicPage() {
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [clientEmail, setClientEmail] = useState('');
+  const [honeypot, setHoneypot] = useState('');
+  const formOpenedAt = useRef<number>(Date.now());
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(false);
   const [manageToken, setManageToken] = useState<string | null>(null);
@@ -94,6 +98,14 @@ export default function PublicPage() {
         setMemberId(member.id);
         setMemberName(member.name);
         setMemberAvatar(member.avatar_url || null);
+
+        // Avaliações do profissional
+        supabase
+          .from('reviews')
+          .select('rating, comment, client_name, created_at')
+          .eq('member_id', member.id)
+          .order('created_at', { ascending: false })
+          .then(({ data }) => setReviews(data || []));
 
         const { data: servicesData, error: servicesError } = await supabase
           .from('member_services')
@@ -175,6 +187,11 @@ export default function PublicPage() {
     e.preventDefault();
     if (!selectedService || !selectedDate || !selectedSlot || !memberId) {
       setError('Por favor, complete todos os campos.');
+      return;
+    }
+    // Anti-spam: honeypot preenchido (bot) ou envio suspeito em <2s
+    if (honeypot || Date.now() - formOpenedAt.current < 2000) {
+      setBookingSuccess(true); // finge sucesso sem inserir
       return;
     }
     setBookingLoading(true);
@@ -333,7 +350,17 @@ export default function PublicPage() {
             </div>
           )}
           <h1 className="text-3xl font-extrabold text-white">{memberName}</h1>
-          <p className="text-indigo-200 text-sm mt-1">Escolha o serviço e o melhor horário para você</p>
+          {reviews.length > 0 ? (
+            <div className="flex items-center justify-center gap-1.5 mt-2">
+              <Star className="w-4 h-4 text-amber-300 fill-amber-300" />
+              <span className="text-white font-semibold text-sm">
+                {(reviews.reduce((a, r) => a + r.rating, 0) / reviews.length).toFixed(1)}
+              </span>
+              <span className="text-indigo-200 text-sm">· {reviews.length} avaliação{reviews.length > 1 ? 'ões' : ''}</span>
+            </div>
+          ) : (
+            <p className="text-indigo-200 text-sm mt-1">Escolha o serviço e o melhor horário para você</p>
+          )}
         </div>
       </div>
 
@@ -441,6 +468,16 @@ export default function PublicPage() {
           >
             <StepHeader number="3" title="Seus Dados" active />
             <form onSubmit={handleBookAppointment} className="space-y-4">
+              {/* Honeypot anti-bot: invisível para humanos */}
+              <input
+                type="text"
+                tabIndex={-1}
+                autoComplete="off"
+                value={honeypot}
+                onChange={(e) => setHoneypot(e.target.value)}
+                className="hidden"
+                aria-hidden="true"
+              />
               <div>
                 <label htmlFor="clientName" className="block text-sm font-medium text-gray-700 mb-1.5">
                   Seu Nome
@@ -508,6 +545,28 @@ export default function PublicPage() {
               </Button>
             </form>
           </motion.div>
+        )}
+
+        {/* Avaliações */}
+        {reviews.length > 0 && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">O que dizem os clientes</h2>
+            <div className="space-y-4">
+              {reviews.slice(0, 5).map((r, i) => (
+                <div key={i} className="border-b border-gray-50 last:border-0 pb-4 last:pb-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="flex">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <Star key={n} className={`w-4 h-4 ${r.rating >= n ? 'text-amber-400 fill-amber-400' : 'text-gray-200'}`} />
+                      ))}
+                    </div>
+                    {r.client_name && <span className="text-xs text-gray-400 font-medium">{r.client_name}</span>}
+                  </div>
+                  {r.comment && <p className="text-sm text-gray-600">{r.comment}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </div>
