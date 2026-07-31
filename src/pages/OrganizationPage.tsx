@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { MapPin, Clock, Camera, Phone, ArrowRight, Users, Scissors, Building2 } from 'lucide-react';
+import { MapPin, Clock, Camera, Phone, ArrowRight, Users, Scissors, Building2, Image as ImageIcon } from 'lucide-react';
 import { PublicLoading } from '../components/LoadingScreen';
 import BackButton from '../components/BackButton';
 import { useDocumentMeta } from '../lib/useDocumentMeta';
@@ -20,6 +20,7 @@ type Organization = {
 };
 type Member = { id: string; name: string; slug: string; avatar_url: string | null };
 type Service = { id: string; name: string; price: number; duration: number; category: string | null };
+type PortfolioItem = { id: string; image_url: string; caption: string | null };
 
 const getInitials = (name: string) =>
   name.split(' ').slice(0, 2).map((w) => w[0]?.toUpperCase()).join('');
@@ -41,6 +42,7 @@ export default function OrganizationPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [specialties, setSpecialties] = useState<Record<string, string[]>>({});
+  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
 
   useEffect(() => {
     if (!organizationSlug) {
@@ -85,6 +87,15 @@ export default function OrganizationPage() {
             (map[row.member_id] = map[row.member_id] || []).push(row.services.name);
           });
           setSpecialties(map);
+
+          // Portfólio agregado de toda a equipe
+          const { data: pf } = await supabase
+            .from('portfolio_items')
+            .select('id, image_url, caption')
+            .in('member_id', memberIds)
+            .order('created_at', { ascending: false })
+            .limit(12);
+          setPortfolio(pf || []);
         }
       } catch (err: any) {
         setError(err.message);
@@ -259,6 +270,29 @@ export default function OrganizationPage() {
                     R$ {Number(s.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </p>
                 </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* Portfólio da equipe */}
+        {portfolio.length > 0 && (
+          <section>
+            <div className="flex items-center gap-2 mb-5">
+              <ImageIcon className="w-5 h-5 text-indigo-500" />
+              <h2 className="text-xl font-bold text-gray-900">Trabalhos</h2>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              {portfolio.map((p) => (
+                <a
+                  key={p.id}
+                  href={p.image_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="aspect-square rounded-xl overflow-hidden border border-gray-100 group"
+                >
+                  <img src={p.image_url} alt={p.caption || 'Trabalho'} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                </a>
               ))}
             </div>
           </section>

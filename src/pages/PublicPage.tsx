@@ -289,7 +289,7 @@ export default function PublicPage() {
           <button
             onClick={closeSuccess}
             aria-label="Fechar"
-            className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition-all"
+            className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full text-gray-500 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 transition-all"
           >
             <X className="w-5 h-5" />
           </button>
