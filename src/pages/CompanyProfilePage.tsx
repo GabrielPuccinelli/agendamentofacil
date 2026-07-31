@@ -23,6 +23,7 @@ type OrgProfile = {
   opening_hours: string | null;
   instagram: string | null;
   require_confirmation: boolean;
+  buffer_minutes: number;
 };
 
 /** Edição do perfil público da empresa: logo, capa, descrição, contato e horários. */
@@ -53,7 +54,7 @@ export default function CompanyProfilePage() {
       const [{ data: orgData }, { data: allMembers }] = await Promise.all([
         supabase
           .from('organizations')
-          .select('id, name, slug, logo_url, cover_url, description, whatsapp, address, opening_hours, instagram, require_confirmation')
+          .select('id, name, slug, logo_url, cover_url, description, whatsapp, address, opening_hours, instagram, require_confirmation, buffer_minutes')
           .eq('id', member.organization_id)
           .single(),
         supabase.from('members').select('id, name, slug').eq('organization_id', member.organization_id),
@@ -106,6 +107,7 @@ export default function CompanyProfilePage() {
         opening_hours: org.opening_hours?.trim() || null,
         instagram: org.instagram?.trim().replace(/^@/, '') || null,
         require_confirmation: org.require_confirmation,
+        buffer_minutes: org.buffer_minutes,
       })
       .eq('id', org.id);
     setSaving(false);
@@ -223,6 +225,27 @@ export default function CompanyProfilePage() {
               checked={org.require_confirmation}
               onCheckedChange={(v) => setOrg({ ...org, require_confirmation: v })}
             />
+          </div>
+
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-gray-700">Intervalo entre atendimentos</p>
+              <p className="text-xs text-gray-400 mt-0.5 max-w-md">
+                Minutos de folga reservados antes e depois de cada agendamento (ex.: para limpeza/preparo).
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <input
+                type="number"
+                min={0}
+                max={120}
+                step={5}
+                value={org.buffer_minutes}
+                onChange={(e) => setOrg({ ...org, buffer_minutes: Math.max(0, Math.min(120, Number(e.target.value) || 0)) })}
+                className="w-20 px-3 py-2 border border-gray-200 rounded-xl text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+              />
+              <span className="text-sm text-gray-400">min</span>
+            </div>
           </div>
 
           <div className="flex justify-end pt-2">

@@ -11,7 +11,7 @@ import 'react-day-picker/dist/style.css';
 import { ptBR } from 'date-fns/locale';
 import { format, addMinutes, setHours, setMinutes } from 'date-fns';
 
-type Organization = { id: string; name: string; require_confirmation?: boolean; };
+type Organization = { id: string; name: string; require_confirmation?: boolean; buffer_minutes?: number; };
 type Service = { id: string; name: string; duration: number; price: number; };
 type Availability = { day_of_week: number; start_time: string; end_time: string; };
 type Review = { rating: number; comment: string | null; client_name: string | null; created_at: string };
@@ -76,7 +76,7 @@ export default function PublicPage() {
 
         const { data: orgData, error: orgError } = await supabase
           .from('organizations')
-          .select('id, name, require_confirmation')
+          .select('id, name, require_confirmation, buffer_minutes')
           .eq('slug', organizationSlug)
           .single();
 
@@ -94,7 +94,7 @@ export default function PublicPage() {
 
         const member = membersData[0];
 
-        setOrganization({ id: orgData.id, name: orgData.name, require_confirmation: orgData.require_confirmation });
+        setOrganization({ id: orgData.id, name: orgData.name, require_confirmation: orgData.require_confirmation, buffer_minutes: orgData.buffer_minutes });
         setMemberId(member.id);
         setMemberName(member.name);
         setMemberAvatar(member.avatar_url || null);
@@ -158,6 +158,7 @@ export default function PublicPage() {
       }
       const busy = busyData || [];
       const now = new Date();
+      const bufferMs = (organization?.buffer_minutes || 0) * 60000;
       const slots: string[] = [];
       const { start_time, end_time } = workHours;
       const duration = selectedService.duration;
@@ -169,8 +170,9 @@ export default function PublicPage() {
         const slotEnd = addMinutes(currentSlotTime, duration);
         if (slotEnd > endTime) break;
         const isOccupied = busy.some((appt: any) => {
-          const apptStart = new Date(appt.start_time);
-          const apptEnd = new Date(appt.end_time);
+          // Estende a faixa ocupada pelo buffer nos dois lados (intervalo entre atendimentos)
+          const apptStart = new Date(new Date(appt.start_time).getTime() - bufferMs);
+          const apptEnd = new Date(new Date(appt.end_time).getTime() + bufferMs);
           return currentSlotTime < apptEnd && slotEnd > apptStart;
         });
         const isPast = currentSlotTime <= now;
