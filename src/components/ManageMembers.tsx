@@ -16,6 +16,7 @@ type Member = {
   can_edit_profile: boolean;
   can_edit_price: boolean;
   can_edit_services: boolean;
+  commission_percent: number;
 };
 
 type FoundUser = {
@@ -62,7 +63,7 @@ export default function ManageMembers({ organizationId, organizationSlug }: Prop
       setLoading(true);
       const { data, error } = await supabase
         .from('members')
-        .select('id, name, slug, role, user_id, can_edit_profile, can_edit_price, can_edit_services')
+        .select('id, name, slug, role, user_id, can_edit_profile, can_edit_price, can_edit_services, commission_percent')
         .eq('organization_id', organizationId)
         .order('role')
         .order('name');
@@ -138,6 +139,13 @@ export default function ManageMembers({ organizationId, organizationSlug }: Prop
     if (error) { toast.error('Não foi possível remover o membro.'); return; }
     setMembers(members.filter((m) => m.id !== memberId));
     toast.success('Membro removido da equipe.');
+  };
+
+  const updateCommission = async (member: Member, value: number) => {
+    const pct = Math.max(0, Math.min(100, value || 0));
+    setMembers((prev) => prev.map((m) => m.id === member.id ? { ...m, commission_percent: pct } : m));
+    const { error } = await supabase.from('members').update({ commission_percent: pct }).eq('id', member.id);
+    if (error) toast.error('Não foi possível salvar a comissão.');
   };
 
   const toggleField = async (member: Member, field: 'can_edit_profile' | 'can_edit_price' | 'can_edit_services') => {
@@ -355,6 +363,18 @@ export default function ManageMembers({ organizationId, organizationSlug }: Prop
                   onChange={() => toggleField(member, 'can_edit_price')}
                   label="Alterar preços"
                 />
+                <label className="flex items-center gap-2 pt-1">
+                  <span className="text-xs text-gray-600 select-none">Comissão</span>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    value={member.commission_percent}
+                    onChange={(e) => updateCommission(member, Number(e.target.value))}
+                    className="w-14 px-2 py-1 border border-gray-200 rounded-lg text-xs text-center focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <span className="text-xs text-gray-400">%</span>
+                </label>
               </div>
             )}
 
