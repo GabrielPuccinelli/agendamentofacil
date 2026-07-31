@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { MapPin, Clock, Camera, Phone, ArrowRight, Users, Scissors, Building2 } from 'lucide-react';
 import { PublicLoading } from '../components/LoadingScreen';
+import BackButton from '../components/BackButton';
 import { useDocumentMeta } from '../lib/useDocumentMeta';
 
 type Organization = {
@@ -109,9 +110,7 @@ export default function OrganizationPage() {
           <Building2 className="w-7 h-7 text-red-400" />
         </div>
         <p className="text-xl font-semibold text-gray-800">{error || 'Página da empresa não encontrada.'}</p>
-        <Link to="/" className="text-indigo-600 hover:text-indigo-700 text-sm font-medium transition-colors">
-          ← Voltar ao início
-        </Link>
+        <BackButton to="/" label="Voltar ao início" />
       </div>
     );
   }
