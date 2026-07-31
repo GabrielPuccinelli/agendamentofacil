@@ -54,11 +54,16 @@ Trabalho no worktree `.claude/worktrees/<nome>` na branch `claude/<nome>`. Ao te
 - Compartilhados: `PageHeader`, `StatCard`, `EmptyState`, `ConfirmButton` (AlertDialog), `Reveal`
 
 ## Banco de dados (Supabase)
-Tabelas: `organizations` (slug, logo_url, cover_url, description, whatsapp, address, opening_hours, instagram), `members` (role admin/staff, `can_edit_profile/price/services`, `organization_id` nullable), `services` (nível org), `member_services` (junção), `availability`, `bookings` (status confirmed/cancelled/pending/completed, **`manage_token`** uuid), `time_blocks`, `member_invites`.
+Tabelas: `organizations` (slug, logo_url, cover_url, description, whatsapp, address, opening_hours, instagram, **`require_confirmation`** bool), `members` (role admin/staff, `can_edit_profile/price/services`, `organization_id` nullable), `services` (nível org), `member_services` (junção), `availability`, `bookings` (status confirmed/cancelled/pending/completed, `client_email`, **`manage_token`** uuid, **`reminder_sent_at`**), `time_blocks`, `member_invites`.
 
-RPCs (SECURITY DEFINER, `search_path` fixado): `create_organization_and_admin`, `find_member_by_email`, `accept_invite`, `add_member_to_organization` (reaproveita linha órfã do onboarding), `get_booking_by_token` / `cancel_booking_by_token` / `reschedule_booking_by_token` (públicas — o token é o segredo).
+- **Constraint `bookings_no_overlap`** (EXCLUDE/btree_gist): impede sobreposição de horário do mesmo member (status≠cancelled). INSERT conflitante → erro `23P01`; PublicPage trata com mensagem amigável.
+- **`bookings` NÃO tem leitura pública** (removida — vazava dados do cliente). Slots públicos usam o RPC `get_busy_times(member_id, from, to)` que só retorna faixas ocupadas (bookings + time_blocks, sem PII). Staff lê os seus; admin lê todos; staff faz UPDATE dos seus (confirmar/recusar).
 
-Edge Function `notify-booking` — disparada por trigger no INSERT de bookings; e-mail via Resend ao profissional e dono. Precisa de secret `RESEND_API_KEY` (sem ela, agenda funciona mas não envia e-mail).
+RPCs (SECURITY DEFINER, `search_path` fixado): `create_organization_and_admin`, `find_member_by_email`, `accept_invite`, `add_member_to_organization` (reaproveita linha órfã do onboarding), `get_booking_by_token` / `cancel_booking_by_token` / `reschedule_booking_by_token` / `get_busy_times` (públicas — token é o segredo / busy sem PII).
+
+Edge Functions (precisam de `RESEND_API_KEY`; sem ela agenda funciona mas não envia e-mail):
+- `notify-booking` — trigger no INSERT de bookings; avisa profissional+dono e confirma ao cliente (se deu e-mail).
+- `send-reminders` — chamada por **pg_cron** de hora em hora; lembra clientes ~24h antes (usa `reminder_sent_at`). Opcional: `NOTIFY_APP_URL` (links de prod), `NOTIFY_FROM_EMAIL`, `CRON_SECRET`.
 
 Storage: bucket público `public-assets` (logos/capas) e `avatars`. **Upload usa upsert → exige policy de SELECT** (existe `Auth read public-assets` para authenticated). Listagem pública fica bloqueada de propósito.
 
