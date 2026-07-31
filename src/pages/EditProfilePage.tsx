@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useNavigate, Link } from 'react-router-dom';
 import AppShell from '../components/AppShell';
+import { AppLoading } from '../components/LoadingScreen';
 import type { UserProfile, MemberLink } from '../components/Sidebar';
 
 type Tab = 'personal' | 'address' | 'documents';
@@ -248,13 +249,7 @@ const EditProfilePage: React.FC = () => {
     setSaving(false);
   };
 
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-slate-950">
-        <div className="w-10 h-10 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-      </div>
-    );
-  }
+  if (loading) return <AppLoading />;
 
   return (
     <AppShell

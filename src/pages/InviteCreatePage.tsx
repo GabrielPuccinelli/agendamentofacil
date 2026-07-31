@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { supabase } from '../lib/supabaseClient';
 import AppShell from '../components/AppShell';
+import { AppLoading } from '../components/LoadingScreen';
 import { ConfirmButton } from '../components/ConfirmButton';
 import type { SidebarProps } from '../components/Sidebar';
 
@@ -132,13 +133,7 @@ export default function InviteCreatePage() {
 
   const handleLogout = async () => { await supabase.auth.signOut(); };
 
-  if (loading || !sidebarProps) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-slate-950">
-        <div className="w-10 h-10 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-      </div>
-    );
-  }
+  if (loading || !sidebarProps) return <AppLoading />;
 
   return (
     <AppShell {...sidebarProps} onLogout={handleLogout}>

@@ -5,6 +5,7 @@ import AppShell from '../components/AppShell';
 import type { SidebarProps } from '../components/Sidebar';
 import ManageServices from '../components/ManageServices';
 import ManageMembers from '../components/ManageMembers';
+import { AppLoading } from '../components/LoadingScreen';
 
 type Booking = {
   id: string;
@@ -217,16 +218,7 @@ export default function CompanyDashboardPage() {
 
   const handleLogout = async () => { await supabase.auth.signOut(); };
 
-  if (loading || !sidebarProps) {
-    return (
-      <div className="flex justify-center items-center min-h-screen bg-slate-950">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-          <p className="text-indigo-400 text-sm">Carregando analytics...</p>
-        </div>
-      </div>
-    );
-  }
+  if (loading || !sidebarProps) return <AppLoading />;
 
   // Derived metrics
   const now = new Date();

@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
 import { Loader2, Star } from 'lucide-react';
+import { PublicLoading } from '../components/LoadingScreen';
 
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
@@ -15,15 +16,6 @@ type Organization = { id: string; name: string; require_confirmation?: boolean; 
 type Service = { id: string; name: string; duration: number; price: number; };
 type Availability = { day_of_week: number; start_time: string; end_time: string; };
 type Review = { rating: number; comment: string | null; client_name: string | null; created_at: string };
-
-const Spinner = ({ label }: { label: string }) => (
-  <div className="flex justify-center items-center min-h-screen bg-gray-50">
-    <div className="flex flex-col items-center gap-4">
-      <div className="w-10 h-10 border-2 border-indigo-500/30 border-t-indigo-500 rounded-full animate-spin" />
-      <p className="text-gray-500 text-sm">{label}</p>
-    </div>
-  </div>
-);
 
 const StepHeader = ({ number, title, active }: { number: string; title: string; active: boolean }) => (
   <div className={`flex items-center gap-3 mb-5 transition-opacity duration-300 ${active ? 'opacity-100' : 'opacity-60'}`}>
@@ -239,7 +231,7 @@ export default function PublicPage() {
   };
 
   // --- Renderização ---
-  if (loading) return <Spinner label="Carregando agendamento..." />;
+  if (loading) return <PublicLoading />;
 
   if (error && !organization) {
     return (
