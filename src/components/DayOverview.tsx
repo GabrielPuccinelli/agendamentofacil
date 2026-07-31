@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { toast } from 'sonner';
 import StatCard from './StatCard';
 import EmptyState from './EmptyState';
-import { CalendarCheck, CalendarClock, UserRound, Gauge, Phone, CalendarDays } from 'lucide-react';
+import { CalendarCheck, CalendarClock, UserRound, Gauge, Phone, CalendarDays, Check, X, BellRing } from 'lucide-react';
 import { format, startOfDay, endOfDay, addDays, isToday, isTomorrow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -75,9 +76,11 @@ export default function DayOverview({ memberId }: Props) {
     );
   }
 
-  const todayBookings = bookings.filter((b) => isToday(new Date(b.start_time)));
-  const upcoming = bookings.filter((b) => !isToday(new Date(b.start_time)));
-  const next = bookings.find((b) => new Date(b.start_time) > new Date());
+  const pending = bookings.filter((b) => b.status === 'pending');
+  const confirmed = bookings.filter((b) => b.status !== 'pending');
+  const todayBookings = confirmed.filter((b) => isToday(new Date(b.start_time)));
+  const upcoming = confirmed.filter((b) => !isToday(new Date(b.start_time)));
+  const next = bookings.find((b) => new Date(b.start_time) > new Date() && b.status !== 'pending');
 
   // Agrupa os próximos por dia
   const upcomingByDay = upcoming.reduce<Record<string, Booking[]>>((acc, b) => {
@@ -86,8 +89,54 @@ export default function DayOverview({ memberId }: Props) {
     return acc;
   }, {});
 
+  const handleDecision = async (id: string, decision: 'confirmed' | 'cancelled') => {
+    const { error } = await supabase.from('bookings').update({ status: decision }).eq('id', id);
+    if (error) { toast.error('Não foi possível atualizar o agendamento.'); return; }
+    setBookings((prev) => decision === 'cancelled'
+      ? prev.filter((b) => b.id !== id)
+      : prev.map((b) => b.id === id ? { ...b, status: 'confirmed' } : b));
+    toast.success(decision === 'confirmed' ? 'Agendamento confirmado!' : 'Agendamento recusado.');
+  };
+
   return (
     <div className="mb-8">
+      {/* Pedidos pendentes de confirmação */}
+      {pending.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5 mb-6">
+          <div className="flex items-center gap-2 mb-3">
+            <BellRing className="w-5 h-5 text-amber-500" />
+            <h2 className="text-base font-bold text-amber-900">
+              {pending.length} pedido{pending.length > 1 ? 's' : ''} aguardando confirmação
+            </h2>
+          </div>
+          <div className="space-y-2">
+            {pending.map((b) => (
+              <div key={b.id} className="flex items-center gap-3 bg-white border border-amber-100 rounded-xl px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-semibold text-gray-900 truncate">{b.client_name}</p>
+                  <p className="text-xs text-gray-400">
+                    {format(new Date(b.start_time), "dd/MM 'às' HH:mm", { locale: ptBR })}
+                    {b.services?.name && <span> · {b.services.name}</span>}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleDecision(b.id, 'confirmed')}
+                  className="flex items-center gap-1 bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-semibold px-3 py-2 rounded-lg transition-all"
+                >
+                  <Check className="w-3.5 h-3.5" /> Confirmar
+                </button>
+                <button
+                  onClick={() => handleDecision(b.id, 'cancelled')}
+                  className="flex items-center gap-1 bg-white border border-gray-200 text-gray-500 hover:text-red-500 hover:border-red-200 text-xs font-semibold px-3 py-2 rounded-lg transition-all"
+                >
+                  <X className="w-3.5 h-3.5" /> Recusar
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Métricas */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard

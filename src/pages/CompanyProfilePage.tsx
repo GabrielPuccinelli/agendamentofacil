@@ -5,6 +5,7 @@ import AppShell from '../components/AppShell';
 import PageHeader from '../components/PageHeader';
 import type { SidebarProps } from '../components/Sidebar';
 import { Button } from '@/components/ui/button';
+import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
 import { Loader2, Upload, Building2, ExternalLink } from 'lucide-react';
 
@@ -21,6 +22,7 @@ type OrgProfile = {
   address: string | null;
   opening_hours: string | null;
   instagram: string | null;
+  require_confirmation: boolean;
 };
 
 /** Edição do perfil público da empresa: logo, capa, descrição, contato e horários. */
@@ -51,7 +53,7 @@ export default function CompanyProfilePage() {
       const [{ data: orgData }, { data: allMembers }] = await Promise.all([
         supabase
           .from('organizations')
-          .select('id, name, slug, logo_url, cover_url, description, whatsapp, address, opening_hours, instagram')
+          .select('id, name, slug, logo_url, cover_url, description, whatsapp, address, opening_hours, instagram, require_confirmation')
           .eq('id', member.organization_id)
           .single(),
         supabase.from('members').select('id, name, slug').eq('organization_id', member.organization_id),
@@ -103,6 +105,7 @@ export default function CompanyProfilePage() {
         address: org.address?.trim() || null,
         opening_hours: org.opening_hours?.trim() || null,
         instagram: org.instagram?.trim().replace(/^@/, '') || null,
+        require_confirmation: org.require_confirmation,
       })
       .eq('id', org.id);
     setSaving(false);
@@ -209,6 +212,19 @@ export default function CompanyProfilePage() {
               className={inputCls}
             />
           </div>
+          <div className="flex items-start justify-between gap-4 border-t border-gray-50 pt-5">
+            <div>
+              <p className="text-sm font-medium text-gray-700">Exigir confirmação dos agendamentos</p>
+              <p className="text-xs text-gray-400 mt-0.5 max-w-md">
+                Quando ativado, novos agendamentos ficam como <strong>pendentes</strong> até o profissional confirmar no dashboard. Desativado, são confirmados automaticamente.
+              </p>
+            </div>
+            <Switch
+              checked={org.require_confirmation}
+              onCheckedChange={(v) => setOrg({ ...org, require_confirmation: v })}
+            />
+          </div>
+
           <div className="flex justify-end pt-2">
             <Button type="submit" disabled={saving} className="gradient-brand shadow-md shadow-indigo-500/20">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar alterações'}
