@@ -14,8 +14,12 @@ type Booking = {
   client_name: string;
   client_phone: string | null;
   status: string;
-  services: { name: string } | null;
+  paid: boolean;
+  payment_method: string | null;
+  services: { name: string; price: number } | null;
 };
+
+const PAYMENT_METHODS = ['Pix', 'Dinheiro', 'Cartão'];
 
 type Props = { memberId: string };
 
@@ -36,7 +40,7 @@ export default function DayOverview({ memberId }: Props) {
       const [{ data: bookingData }, { data: availabilityData }] = await Promise.all([
         supabase
           .from('bookings')
-          .select('id, start_time, end_time, client_name, client_phone, status, services(name)')
+          .select('id, start_time, end_time, client_name, client_phone, status, paid, payment_method, services(name, price)')
           .eq('member_id', memberId)
           .neq('status', 'cancelled')
           .gte('start_time', startOfDay(now).toISOString())
@@ -96,6 +100,16 @@ export default function DayOverview({ memberId }: Props) {
       ? prev.filter((b) => b.id !== id)
       : prev.map((b) => b.id === id ? { ...b, status: 'confirmed' } : b));
     toast.success(decision === 'confirmed' ? 'Agendamento confirmado!' : 'Agendamento recusado.');
+  };
+
+  const markPaid = async (id: string, method: string) => {
+    const { error } = await supabase
+      .from('bookings')
+      .update({ paid: true, payment_method: method, paid_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) { toast.error('Não foi possível registrar o pagamento.'); return; }
+    setBookings((prev) => prev.map((b) => b.id === id ? { ...b, paid: true, payment_method: method } : b));
+    toast.success(`Pagamento registrado (${method}).`);
   };
 
   return (
@@ -202,7 +216,33 @@ export default function DayOverview({ memberId }: Props) {
                         )}
                       </div>
                       <p className="text-sm text-gray-700 mt-0.5">{b.client_name}</p>
-                      {b.services?.name && <p className="text-xs text-gray-400">{b.services.name}</p>}
+                      {b.services?.name && (
+                        <p className="text-xs text-gray-400">
+                          {b.services.name}
+                          {b.services.price > 0 && <span> · R$ {Number(b.services.price).toFixed(2)}</span>}
+                        </p>
+                      )}
+                      {/* Pagamento */}
+                      <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                        {b.paid ? (
+                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
+                            <Check className="w-3 h-3" /> Pago{b.payment_method ? ` · ${b.payment_method}` : ''}
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-[11px] text-gray-400 mr-1">Marcar pago:</span>
+                            {PAYMENT_METHODS.map((m) => (
+                              <button
+                                key={m}
+                                onClick={() => markPaid(b.id, m)}
+                                className="text-[11px] font-medium text-gray-500 bg-white border border-gray-200 hover:border-emerald-300 hover:text-emerald-600 px-2 py-1 rounded-lg transition-all"
+                              >
+                                {m}
+                              </button>
+                            ))}
+                          </>
+                        )}
+                      </div>
                     </div>
                   </li>
                 );

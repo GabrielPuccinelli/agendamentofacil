@@ -15,6 +15,7 @@ type Booking = {
   client_phone: string | null;
   member_id: string;
   status: string;
+  paid: boolean;
   services: { name: string; price: number; category?: string } | null;
 };
 
@@ -27,7 +28,7 @@ type ClientStat = {
   favoriteMember: string;
 };
 
-type MemberStat = { id: string; name: string; bookings: number; revenue: number; cancelled: number };
+type MemberStat = { id: string; name: string; bookings: number; revenue: number; cancelled: number; commissionPercent: number };
 type ServiceStat = { name: string; category: string; count: number; revenue: number };
 type MonthData = { label: string; key: string; bookings: number; revenue: number };
 
@@ -139,7 +140,7 @@ export default function CompanyDashboardPage() {
 
       const { data: allMembers } = await supabase
         .from('members')
-        .select('id, name, slug')
+        .select('id, name, slug, commission_percent')
         .eq('organization_id', member.organization_id);
 
       const memberMap: Record<string, string> = {};
@@ -150,7 +151,7 @@ export default function CompanyDashboardPage() {
 
       const { data: rawBookings } = await supabase
         .from('bookings')
-        .select('id, start_time, end_time, client_name, client_phone, member_id, status, services(name, price, category)')
+        .select('id, start_time, end_time, client_name, client_phone, member_id, status, paid, services(name, price, category)')
         .in('member_id', memberIds)
         .order('start_time', { ascending: false });
 
@@ -161,7 +162,7 @@ export default function CompanyDashboardPage() {
       const now = new Date();
 
       const statMap: Record<string, MemberStat> = {};
-      allMembers?.forEach((m) => { statMap[m.id] = { id: m.id, name: m.name, bookings: 0, revenue: 0, cancelled: 0 }; });
+      allMembers?.forEach((m: any) => { statMap[m.id] = { id: m.id, name: m.name, bookings: 0, revenue: 0, cancelled: 0, commissionPercent: m.commission_percent || 0 }; });
 
       const svcMap: Record<string, ServiceStat> = {};
       const months: MonthData[] = [];
@@ -227,14 +228,17 @@ export default function CompanyDashboardPage() {
   const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59).toISOString();
 
   let totalBookings = 0, totalRevenue = 0, monthBookings = 0, monthRevenue = 0;
-  let cancelledTotal = 0, prevMonthBookings = 0, prevMonthRevenue = 0;
+  let cancelledTotal = 0, prevMonthBookings = 0, prevMonthRevenue = 0, monthReceived = 0;
 
   bookings.forEach((b: any) => {
     const price = b.services?.price || 0;
     const isCancelled = b.status === 'cancelled';
     if (isCancelled) { cancelledTotal++; return; }
     totalBookings++; totalRevenue += price;
-    if (b.start_time >= startOfMonth) { monthBookings++; monthRevenue += price; }
+    if (b.start_time >= startOfMonth) {
+      monthBookings++; monthRevenue += price;
+      if (b.paid) monthReceived += price;
+    }
     if (b.start_time >= prevMonthStart && b.start_time <= prevMonthEnd) { prevMonthBookings++; prevMonthRevenue += price; }
   });
 
@@ -397,7 +401,7 @@ export default function CompanyDashboardPage() {
               <KpiCard
                 label="Faturamento (mês)"
                 value={`R$ ${monthRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                sub="líquido confirmado"
+                sub={`R$ ${monthReceived.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} recebido`}
                 color="bg-emerald-50"
                 icon={
                   <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -751,10 +755,21 @@ export default function CompanyDashboardPage() {
                           <p className="text-xs text-emerald-400">faturamento</p>
                         </div>
                         <div className="bg-violet-50 rounded-xl p-3 text-center">
-                          <p className="text-sm font-extrabold text-violet-700">
-                            R$ {m.bookings > 0 ? (m.revenue / m.bookings).toFixed(0) : '0'}
-                          </p>
-                          <p className="text-xs text-violet-400">ticket médio</p>
+                          {m.commissionPercent > 0 ? (
+                            <>
+                              <p className="text-sm font-extrabold text-violet-700">
+                                R$ {(m.revenue * m.commissionPercent / 100).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
+                              </p>
+                              <p className="text-xs text-violet-400">comissão ({m.commissionPercent}%)</p>
+                            </>
+                          ) : (
+                            <>
+                              <p className="text-sm font-extrabold text-violet-700">
+                                R$ {m.bookings > 0 ? (m.revenue / m.bookings).toFixed(0) : '0'}
+                              </p>
+                              <p className="text-xs text-violet-400">ticket médio</p>
+                            </>
+                          )}
                         </div>
                       </div>
                       <div className="mt-3">
