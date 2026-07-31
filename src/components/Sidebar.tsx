@@ -3,10 +3,11 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, BarChart3, Scissors, Users, UserPlus,
   UserCog, LogOut, CalendarDays, ExternalLink, Copy, Check,
-  Contact, Building2,
+  Contact, Building2, QrCode,
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
+import ShareDialog from './ShareDialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
@@ -37,6 +38,7 @@ export type SidebarProps = {
 /** Card de link público com botão copiar (usado para empresa e profissional). */
 const PublicLinkCard = ({ href, label }: { href: string; label: string }) => {
   const [copied, setCopied] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const fullUrl = `${window.location.origin}${href}`;
   const copy = async (e: React.MouseEvent) => {
     e.preventDefault();
@@ -51,22 +53,32 @@ const PublicLinkCard = ({ href, label }: { href: string; label: string }) => {
     }
   };
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs hover:bg-indigo-500/20 transition-all group/link"
-    >
-      <ExternalLink className="w-3.5 h-3.5 shrink-0" />
-      <span className="truncate flex-1">{label}</span>
-      <button
-        onClick={copy}
-        title="Copiar link"
-        className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md hover:bg-indigo-500/30 transition-all"
+    <>
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs hover:bg-indigo-500/20 transition-all group/link"
       >
-        {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-      </button>
-    </a>
+        <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+        <span className="truncate flex-1">{label}</span>
+        <button
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShareOpen(true); }}
+          title="Compartilhar com QR"
+          className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md hover:bg-indigo-500/30 transition-all"
+        >
+          <QrCode className="w-3.5 h-3.5" />
+        </button>
+        <button
+          onClick={copy}
+          title="Copiar link"
+          className="shrink-0 w-6 h-6 flex items-center justify-center rounded-md hover:bg-indigo-500/30 transition-all"
+        >
+          {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+        </button>
+      </a>
+      <ShareDialog open={shareOpen} onOpenChange={setShareOpen} path={href} title={label} />
+    </>
   );
 };
 
