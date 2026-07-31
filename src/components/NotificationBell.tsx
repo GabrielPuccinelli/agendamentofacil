@@ -1,25 +1,35 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { Bell, CalendarClock } from 'lucide-react';
+import { Bell, CalendarClock, ArrowLeft, Phone, Clock } from 'lucide-react';
 import { format, isToday, isTomorrow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
 type Item = {
   id: string;
   start_time: string;
+  end_time: string;
   client_name: string;
+  client_phone: string | null;
   status: string;
-  created_at?: string;
-  services: { name: string } | null;
+  paid: boolean;
+  payment_method: string | null;
+  created_at: string;
+  services: { name: string; price: number } | null;
 };
 
+const waLink = (phone: string) => `https://wa.me/55${phone.replace(/\D/g, '')}`;
+
+const dayLabel = (d: Date) =>
+  isToday(d) ? 'Hoje' : isTomorrow(d) ? 'Amanhã' : format(d, 'dd/MM', { locale: ptBR });
+
 /**
- * Sino de notificações — autônomo: descobre o próprio member/org pela sessão
- * e mostra agendamentos futuros (pendentes primeiro). "Não vistos" via localStorage.
+ * Sino de notificações — autônomo: descobre o próprio member/org pela sessão,
+ * mostra os agendamentos mais recentes (por criação) e abre os detalhes ao clicar.
  */
 export default function NotificationBell() {
   const [items, setItems] = useState<Item[]>([]);
   const [open, setOpen] = useState(false);
+  const [selected, setSelected] = useState<Item | null>(null);
   const [lastSeen, setLastSeen] = useState<number>(() => Number(localStorage.getItem('notif_last_seen') || 0));
   const ref = useRef<HTMLDivElement>(null);
 
@@ -44,11 +54,10 @@ export default function NotificationBell() {
 
       const { data } = await supabase
         .from('bookings')
-        .select('id, start_time, client_name, status, services(name)')
+        .select('id, start_time, end_time, client_name, client_phone, status, paid, payment_method, created_at, services(name, price)')
         .in('member_id', memberIds)
         .neq('status', 'cancelled')
-        .gte('start_time', new Date().toISOString())
-        .order('start_time')
+        .order('created_at', { ascending: false })
         .limit(15);
       setItems((data || []) as unknown as Item[]);
     };
@@ -57,28 +66,27 @@ export default function NotificationBell() {
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+      if (ref.current && !ref.current.contains(e.target as Node)) { setOpen(false); setSelected(null); }
     };
     document.addEventListener('mousedown', onClick);
     return () => document.removeEventListener('mousedown', onClick);
   }, []);
 
   const pendingCount = items.filter((i) => i.status === 'pending').length;
-  // Badge: pendentes (ação necessária) ou novos agendamentos ainda não vistos
   const newSinceSeen = Math.max(items.length - lastSeen, 0);
   const badge = pendingCount > 0 ? pendingCount : newSinceSeen;
 
   const toggle = () => {
     const next = !open;
     setOpen(next);
+    setSelected(null);
     if (next) {
       localStorage.setItem('notif_last_seen', String(items.length));
       setLastSeen(items.length);
     }
   };
 
-  const dayLabel = (d: Date) =>
-    isToday(d) ? 'Hoje' : isTomorrow(d) ? 'Amanhã' : format(d, 'dd/MM', { locale: ptBR });
+  const statusLabel = (s: string) => s === 'pending' ? 'Pendente' : s === 'completed' ? 'Realizado' : 'Confirmado';
 
   return (
     <div className="relative" ref={ref}>
@@ -97,38 +105,89 @@ export default function NotificationBell() {
 
       {open && (
         <div className="absolute right-0 mt-2 w-80 max-w-[90vw] bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden">
-          <div className="px-4 py-3 border-b border-gray-50">
-            <p className="font-bold text-gray-900 text-sm">Notificações</p>
-            <p className="text-xs text-gray-400">
-              {pendingCount > 0 ? `${pendingCount} aguardando confirmação` : 'Próximos agendamentos'}
-            </p>
-          </div>
-          <div className="max-h-80 overflow-y-auto">
-            {items.length === 0 ? (
-              <div className="px-4 py-8 text-center text-gray-400 text-sm">
-                <CalendarClock className="w-8 h-8 mx-auto mb-2 text-gray-200" />
-                Nenhum agendamento futuro
+          {selected ? (
+            /* Detalhe do agendamento */
+            <div>
+              <div className="flex items-center gap-2 px-4 py-3 border-b border-gray-50">
+                <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600 transition-colors">
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+                <p className="font-bold text-gray-900 text-sm">Detalhes do agendamento</p>
               </div>
-            ) : (
-              items.map((it) => (
-                <div key={it.id} className="flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 ${it.status === 'pending' ? 'bg-amber-400' : 'gradient-brand'}`}>
-                    {it.client_name?.charAt(0).toUpperCase() || '?'}
+              <div className="p-4 space-y-3">
+                <div className="flex items-center gap-3">
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold shrink-0 ${selected.status === 'pending' ? 'bg-amber-400' : 'gradient-brand'}`}>
+                    {selected.client_name?.charAt(0).toUpperCase() || '?'}
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-gray-800 truncate">
-                      {it.client_name}
-                      {it.status === 'pending' && <span className="ml-1.5 text-[10px] text-amber-500 font-bold">PENDENTE</span>}
-                    </p>
-                    <p className="text-xs text-gray-400 truncate">
-                      {dayLabel(new Date(it.start_time))} · {format(new Date(it.start_time), 'HH:mm')}
-                      {it.services?.name && ` · ${it.services.name}`}
-                    </p>
+                  <div className="min-w-0">
+                    <p className="font-bold text-gray-900 truncate">{selected.client_name}</p>
+                    <span className={`text-[11px] font-semibold ${selected.status === 'pending' ? 'text-amber-500' : 'text-emerald-500'}`}>
+                      {statusLabel(selected.status)}{selected.paid ? ` · Pago${selected.payment_method ? ` (${selected.payment_method})` : ''}` : ''}
+                    </span>
                   </div>
                 </div>
-              ))
-            )}
-          </div>
+                <div className="space-y-1.5 text-sm border-t border-gray-50 pt-3">
+                  <p className="flex items-center gap-2 text-gray-600"><Clock className="w-4 h-4 text-gray-300" /> {format(new Date(selected.start_time), "EEEE, dd/MM 'às' HH:mm", { locale: ptBR })}</p>
+                  {selected.services?.name && (
+                    <p className="flex justify-between"><span className="text-gray-400">Serviço</span><strong className="text-gray-700">{selected.services.name}</strong></p>
+                  )}
+                  {selected.services?.price ? (
+                    <p className="flex justify-between"><span className="text-gray-400">Valor</span><strong className="text-gray-700">R$ {Number(selected.services.price).toFixed(2)}</strong></p>
+                  ) : null}
+                </div>
+                {selected.client_phone && (
+                  <a
+                    href={waLink(selected.client_phone)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-1.5 w-full bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-semibold py-2.5 rounded-xl transition-all"
+                  >
+                    <Phone className="w-4 h-4" /> Falar no WhatsApp
+                  </a>
+                )}
+              </div>
+            </div>
+          ) : (
+            /* Lista */
+            <>
+              <div className="px-4 py-3 border-b border-gray-50">
+                <p className="font-bold text-gray-900 text-sm">Notificações</p>
+                <p className="text-xs text-gray-400">
+                  {pendingCount > 0 ? `${pendingCount} aguardando confirmação` : 'Agendamentos mais recentes'}
+                </p>
+              </div>
+              <div className="max-h-80 overflow-y-auto">
+                {items.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-gray-400 text-sm">
+                    <CalendarClock className="w-8 h-8 mx-auto mb-2 text-gray-200" />
+                    Nenhum agendamento ainda
+                  </div>
+                ) : (
+                  items.map((it) => (
+                    <button
+                      key={it.id}
+                      onClick={() => setSelected(it)}
+                      className="w-full text-left flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 ${it.status === 'pending' ? 'bg-amber-400' : 'gradient-brand'}`}>
+                        {it.client_name?.charAt(0).toUpperCase() || '?'}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-gray-800 truncate">
+                          {it.client_name}
+                          {it.status === 'pending' && <span className="ml-1.5 text-[10px] text-amber-500 font-bold">PENDENTE</span>}
+                        </p>
+                        <p className="text-xs text-gray-400 truncate">
+                          {dayLabel(new Date(it.start_time))} · {format(new Date(it.start_time), 'HH:mm')}
+                          {it.services?.name && ` · ${it.services.name}`}
+                        </p>
+                      </div>
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>

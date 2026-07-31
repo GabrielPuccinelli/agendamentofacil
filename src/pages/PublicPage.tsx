@@ -1,12 +1,13 @@
 import { useEffect, useState, useRef } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { toast } from 'sonner';
 import { motion } from 'framer-motion';
 import { Button } from '@/components/ui/button';
-import { Loader2, Star } from 'lucide-react';
+import { Loader2, Star, X } from 'lucide-react';
 import confetti from 'canvas-confetti';
 import { PublicLoading } from '../components/LoadingScreen';
+import BackButton from '../components/BackButton';
 import { useDocumentMeta } from '../lib/useDocumentMeta';
 
 import { DayPicker } from 'react-day-picker';
@@ -266,9 +267,22 @@ export default function PublicPage() {
   }
 
   if (bookingSuccess) {
+    const closeSuccess = () => {
+      setBookingSuccess(false);
+      setClientName(''); setClientPhone(''); setClientEmail('');
+      setSelectedService(null); setSelectedSlot(null);
+      setManageToken(null); setPendingBooking(false);
+    };
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
-        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-10 max-w-md w-full text-center">
+        <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-10 max-w-md w-full text-center relative">
+          <button
+            onClick={closeSuccess}
+            aria-label="Fechar"
+            className="absolute top-4 right-4 w-9 h-9 flex items-center justify-center rounded-full text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition-all"
+          >
+            <X className="w-5 h-5" />
+          </button>
           <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center mx-auto mb-6">
             <svg className="w-10 h-10 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
@@ -337,12 +351,9 @@ export default function PublicPage() {
         <div className="absolute top-0 left-1/4 w-48 h-48 bg-white/10 rounded-full blur-3xl" />
         <div className="absolute bottom-0 right-1/4 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative z-10">
-          <Link
-            to={`/${organizationSlug}`}
-            className="inline-block text-indigo-200 text-sm font-medium mb-3 hover:text-white transition-colors"
-          >
-            ← {organization.name}
-          </Link>
+          <div className="flex justify-center mb-4">
+            <BackButton to={`/${organizationSlug}`} label={organization.name} variant="light" />
+          </div>
           {memberAvatar ? (
             <img
               src={memberAvatar}
