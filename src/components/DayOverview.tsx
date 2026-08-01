@@ -122,13 +122,21 @@ export default function DayOverview({ memberId }: Props) {
   };
 
   const markPaid = async (id: string, method: string) => {
+    // Marcar pago = serviço realizado + como foi pago
     const { error } = await supabase
       .from('bookings')
-      .update({ paid: true, payment_method: method, paid_at: new Date().toISOString() })
+      .update({ paid: true, payment_method: method, paid_at: new Date().toISOString(), status: 'completed' })
       .eq('id', id);
     if (error) { toast.error('Não foi possível registrar o pagamento.'); return; }
-    setBookings((prev) => prev.map((b) => b.id === id ? { ...b, paid: true, payment_method: method } : b));
-    toast.success(`Pagamento registrado (${method}).`);
+    setBookings((prev) => prev.map((b) => b.id === id ? { ...b, paid: true, payment_method: method, status: 'completed' } : b));
+    toast.success(`Serviço concluído e pago (${method}).`);
+  };
+
+  const markNoShow = async (id: string) => {
+    const { error } = await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', id);
+    if (error) { toast.error('Não foi possível atualizar.'); return; }
+    setBookings((prev) => prev.filter((b) => b.id !== id));
+    toast.success('Marcado como não compareceu / cancelado.');
   };
 
   return (
@@ -273,15 +281,15 @@ export default function DayOverview({ memberId }: Props) {
                           {b.services.price > 0 && <span> · R$ {Number(b.services.price).toFixed(2)}</span>}
                         </p>
                       )}
-                      {/* Pagamento */}
+                      {/* Conclusão / pagamento */}
                       <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                         {b.paid ? (
                           <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
-                            <Check className="w-3 h-3" /> Pago{b.payment_method ? ` · ${b.payment_method}` : ''}
+                            <Check className="w-3 h-3" /> Realizado · {b.payment_method || 'pago'}
                           </span>
                         ) : (
                           <>
-                            <span className="text-[11px] text-gray-400 mr-1">Marcar pago:</span>
+                            <span className="text-[11px] text-gray-400 mr-1">{past ? 'Concluir (pago em):' : 'Marcar pago:'}</span>
                             {PAYMENT_METHODS.map((m) => (
                               <button
                                 key={m}
@@ -291,6 +299,14 @@ export default function DayOverview({ memberId }: Props) {
                                 {m}
                               </button>
                             ))}
+                            {past && (
+                              <button
+                                onClick={() => markNoShow(b.id)}
+                                className="text-[11px] font-medium text-gray-400 bg-white border border-gray-200 hover:border-red-300 hover:text-red-500 px-2 py-1 rounded-lg transition-all flex items-center gap-1"
+                              >
+                                <X className="w-3 h-3" /> Não compareceu
+                              </button>
+                            )}
                           </>
                         )}
                       </div>
