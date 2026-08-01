@@ -6,7 +6,9 @@ import type { SidebarProps } from '../components/Sidebar';
 import ManageServices from '../components/ManageServices';
 import ManageMembers from '../components/ManageMembers';
 import { AppLoading } from '../components/LoadingScreen';
-import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
+import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, CartesianGrid, PieChart, Pie, Cell, Legend } from 'recharts';
+
+const METHOD_COLORS: Record<string, string> = { Pix: '#6366f1', Dinheiro: '#10b981', 'Débito': '#f59e0b', 'Crédito': '#7c3aed', Outro: '#94a3b8' };
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -636,13 +638,34 @@ export default function CompanyDashboardPage() {
                   </div>
                 </div>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                {PAYMENT_METHODS.map((m) => (
-                  <div key={m} className="bg-gray-50 rounded-xl p-3 text-center">
-                    <p className="text-sm font-extrabold text-gray-800">R$ {(methodTotals[m] || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{m}</p>
-                  </div>
-                ))}
+              <div className="grid md:grid-cols-2 gap-4 items-center">
+                <div className="grid grid-cols-2 gap-3">
+                  {PAYMENT_METHODS.map((m) => (
+                    <div key={m} className="bg-gray-50 rounded-xl p-3 flex items-center gap-2">
+                      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: METHOD_COLORS[m] }} />
+                      <div>
+                        <p className="text-sm font-extrabold text-gray-800">{mask(`R$ ${(methodTotals[m] || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`)}</p>
+                        <p className="text-xs text-gray-400">{m}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {!hideMoney && PAYMENT_METHODS.some((m) => (methodTotals[m] || 0) > 0) ? (
+                  <ResponsiveContainer width="100%" height={180}>
+                    <PieChart>
+                      <Pie
+                        data={PAYMENT_METHODS.filter((m) => (methodTotals[m] || 0) > 0).map((m) => ({ name: m, value: methodTotals[m] }))}
+                        dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={40} outerRadius={70} paddingAngle={2}
+                      >
+                        {PAYMENT_METHODS.filter((m) => (methodTotals[m] || 0) > 0).map((m) => <Cell key={m} fill={METHOD_COLORS[m]} />)}
+                      </Pie>
+                      <Tooltip formatter={(v: any) => `R$ ${Number(v).toLocaleString('pt-BR')}`} contentStyle={{ borderRadius: 12, border: '1px solid #eee', fontSize: 12 }} />
+                      <Legend iconType="circle" wrapperStyle={{ fontSize: 11 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-[180px] text-gray-300 text-sm">{hideMoney ? 'Valores ocultos' : 'Sem recebimentos ainda'}</div>
+                )}
               </div>
             </div>
 
