@@ -10,7 +10,7 @@ import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, C
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { StickyNote, Loader2, UserPlus, FileText, FileSpreadsheet } from 'lucide-react';
+import { StickyNote, Loader2, UserPlus, FileText, FileSpreadsheet, Eye, EyeOff } from 'lucide-react';
 import { exportReportCsv, exportReportPdf, type FinancialReport, type ReportRow } from '../lib/exportReport';
 
 type Booking = {
@@ -109,12 +109,16 @@ export default function CompanyDashboardPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'services' | 'clients'>(initialTab);
   const [clientSearch, setClientSearch] = useState('');
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'all'>('month');
+  const [hideMoney, setHideMoney] = useState(() => localStorage.getItem('hide_money') === '1');
+  const mask = (v: string) => (hideMoney ? '••••' : v);
+  const toggleMoney = () => setHideMoney((h) => { localStorage.setItem('hide_money', !h ? '1' : '0'); return !h; });
   const [noteClient, setNoteClient] = useState<{ name: string; phone: string } | null>(null);
   const [noteText, setNoteText] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
   const [notedPhones, setNotedPhones] = useState<Set<string>>(new Set());
   // Cadastro de clientes (tabela clients)
   const [registeredClients, setRegisteredClients] = useState<{ name: string; phone: string; email: string | null; notes: string | null }[]>([]);
+  const [detailClient, setDetailClient] = useState<ClientStat | null>(null);
   const [newClientOpen, setNewClientOpen] = useState(false);
   const [ncName, setNcName] = useState('');
   const [ncPhone, setNcPhone] = useState('');
@@ -513,14 +517,25 @@ export default function CompanyDashboardPage() {
         {/* ── Overview Tab ─────────────────────────────────────────────────── */}
         {activeTab === 'overview' && (
           <>
+            {/* Barra de visibilidade */}
+            <div className="flex justify-end mb-3">
+              <button
+                onClick={toggleMoney}
+                className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 bg-white border border-gray-200 rounded-xl px-3 py-1.5 transition-all"
+              >
+                {hideMoney ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {hideMoney ? 'Mostrar valores' : 'Ocultar valores'}
+              </button>
+            </div>
+
             {/* KPI Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
               <KpiCard
                 label="Agendamentos (mês)"
-                value={String(monthBookings)}
+                value={mask(String(monthBookings))}
                 sub="confirmados"
                 color="bg-indigo-50"
-                trend={bookingTrend ? { value: bookingTrend, up: monthBookings >= prevMonthBookings } : undefined}
+                trend={!hideMoney && bookingTrend ? { value: bookingTrend, up: monthBookings >= prevMonthBookings } : undefined}
                 icon={
                   <svg className="w-6 h-6 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
@@ -529,8 +544,8 @@ export default function CompanyDashboardPage() {
               />
               <KpiCard
                 label="Faturamento (mês)"
-                value={`R$ ${monthRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
-                sub={`R$ ${monthReceived.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} recebido`}
+                value={mask(`R$ ${monthRevenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`)}
+                sub={hideMoney ? '••••' : `R$ ${monthReceived.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} recebido`}
                 color="bg-emerald-50"
                 icon={
                   <svg className="w-6 h-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -540,7 +555,7 @@ export default function CompanyDashboardPage() {
               />
               <KpiCard
                 label="Ticket Médio"
-                value={`R$ ${avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                value={mask(`R$ ${avgTicket.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`)}
                 sub="por atendimento"
                 color="bg-violet-50"
                 icon={
@@ -551,7 +566,7 @@ export default function CompanyDashboardPage() {
               />
               <KpiCard
                 label="Taxa de Cancelamento"
-                value={`${cancellationRate}%`}
+                value={mask(`${cancellationRate}%`)}
                 sub={`${cancelledTotal} cancelado(s)`}
                 color="bg-rose-50"
                 icon={
@@ -571,11 +586,11 @@ export default function CompanyDashboardPage() {
                 </div>
                 <div className="flex gap-4">
                   <div className="text-right">
-                    <p className="text-lg font-extrabold text-emerald-600">R$ {monthReceived.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    <p className="text-lg font-extrabold text-emerald-600">{mask(`R$ ${monthReceived.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`)}</p>
                     <p className="text-[11px] text-gray-400">recebido</p>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-extrabold text-amber-500">R$ {monthToReceive.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    <p className="text-lg font-extrabold text-amber-500">{mask(`R$ ${monthToReceive.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`)}</p>
                     <p className="text-[11px] text-gray-400">a receber</p>
                   </div>
                 </div>
@@ -856,23 +871,23 @@ export default function CompanyDashboardPage() {
                       {filteredClients.map((c) => (
                         <tr key={c.phone || c.name} className="border-b border-gray-50 last:border-0">
                           <td className="py-3 pr-4">
-                            <div className="flex items-center gap-2.5">
+                            <button onClick={() => setDetailClient(c)} className="flex items-center gap-2.5 text-left hover:opacity-80 transition-opacity">
                               <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 ${
                                 c.visits > 1 ? 'gradient-brand' : 'bg-gray-300'
                               }`}>
                                 {c.name?.charAt(0).toUpperCase() || '?'}
                               </div>
                               <div className="min-w-0">
-                                <p className="font-semibold text-gray-800 truncate">{c.name}</p>
+                                <p className="font-semibold text-gray-800 truncate hover:text-indigo-600 transition-colors">{c.name}</p>
                                 {c.visits > 1 && <span className="text-[10px] text-indigo-500 font-medium">Recorrente</span>}
                               </div>
-                            </div>
+                            </button>
                           </td>
                           <td className="py-3 pr-4 font-bold text-gray-700">{c.visits}</td>
                           <td className="py-3 pr-4 text-gray-500">{c.lastVisit ? new Date(c.lastVisit).toLocaleDateString('pt-BR') : '—'}</td>
                           <td className="py-3 pr-4 text-gray-500 hidden md:table-cell">{c.favoriteMember}</td>
                           <td className="py-3 pr-4 text-right font-semibold text-emerald-600">
-                            R$ {c.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
+                            {mask(`R$ ${c.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`)}
                           </td>
                           <td className="py-3 text-right">
                             <div className="flex items-center justify-end gap-2">
@@ -1076,6 +1091,45 @@ export default function CompanyDashboardPage() {
               {noteSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar anotação'}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de detalhes do cliente */}
+      <Dialog open={!!detailClient} onOpenChange={(v) => !v && setDetailClient(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between gap-2">
+              <span>{detailClient?.name}</span>
+              <button onClick={toggleMoney} className="text-gray-400 hover:text-indigo-600" title={hideMoney ? 'Mostrar valores' : 'Ocultar valores'}>
+                {hideMoney ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </DialogTitle>
+          </DialogHeader>
+          {detailClient && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-3 gap-2 text-center">
+                <div className="bg-indigo-50 rounded-xl p-3"><p className="text-lg font-extrabold text-indigo-700">{detailClient.visits}</p><p className="text-[11px] text-indigo-400">visitas</p></div>
+                <div className="bg-emerald-50 rounded-xl p-3"><p className="text-sm font-extrabold text-emerald-700">{mask(`R$ ${detailClient.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`)}</p><p className="text-[11px] text-emerald-400">total gasto</p></div>
+                <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs font-bold text-gray-700 truncate">{detailClient.lastVisit ? new Date(detailClient.lastVisit).toLocaleDateString('pt-BR') : '—'}</p><p className="text-[11px] text-gray-400">última visita</p></div>
+              </div>
+              <div className="space-y-1.5 text-sm border-t border-gray-50 pt-3">
+                <p className="flex justify-between"><span className="text-gray-400">Telefone</span><strong className="text-gray-700">{detailClient.phone || '—'}</strong></p>
+                <p className="flex justify-between"><span className="text-gray-400">Profissional frequente</span><strong className="text-gray-700">{detailClient.favoriteMember}</strong></p>
+              </div>
+              <div className="flex gap-2 pt-1">
+                {detailClient.phone && (
+                  <Button asChild variant="outline" className="flex-1">
+                    <a href={`https://wa.me/55${detailClient.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">WhatsApp</a>
+                  </Button>
+                )}
+                {detailClient.phone && (
+                  <Button onClick={() => { const c = detailClient; setDetailClient(null); openNote(c.name, c.phone); }} className="flex-1 gradient-brand">
+                    <StickyNote className="w-4 h-4" /> Anotações
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
