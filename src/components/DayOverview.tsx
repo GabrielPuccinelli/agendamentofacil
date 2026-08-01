@@ -6,6 +6,9 @@ import EmptyState from './EmptyState';
 import { CalendarCheck, CalendarClock, UserRound, Gauge, Phone, CalendarDays, Check, X, BellRing } from 'lucide-react';
 import { format, startOfDay, endOfDay, addDays, isToday, isTomorrow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip as RTooltip } from 'recharts';
+
+const METHOD_COLORS: Record<string, string> = { Pix: '#6366f1', Dinheiro: '#10b981', 'Débito': '#f59e0b', 'Crédito': '#7c3aed', Outro: '#94a3b8' };
 
 type Booking = {
   id: string;
@@ -229,13 +232,31 @@ export default function DayOverview({ memberId }: Props) {
               </div>
             </div>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {['Pix', 'Dinheiro', 'Débito', 'Crédito'].map((m) => (
-              <div key={m} className="bg-gray-50 rounded-xl p-3 text-center">
-                <p className="text-sm font-extrabold text-gray-800">R$ {(monthFin.byMethod[m] || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</p>
-                <p className="text-xs text-gray-400 mt-0.5">{m}</p>
-              </div>
-            ))}
+          <div className="grid md:grid-cols-2 gap-4 items-center">
+            <div className="grid grid-cols-2 gap-3">
+              {['Pix', 'Dinheiro', 'Débito', 'Crédito'].map((m) => (
+                <div key={m} className="bg-gray-50 rounded-xl p-3 flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: METHOD_COLORS[m] }} />
+                  <div>
+                    <p className="text-sm font-extrabold text-gray-800">R$ {(monthFin.byMethod[m] || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</p>
+                    <p className="text-xs text-gray-400">{m}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            {['Pix', 'Dinheiro', 'Débito', 'Crédito'].some((m) => (monthFin.byMethod[m] || 0) > 0) && (
+              <ResponsiveContainer width="100%" height={160}>
+                <PieChart>
+                  <Pie
+                    data={['Pix', 'Dinheiro', 'Débito', 'Crédito'].filter((m) => (monthFin.byMethod[m] || 0) > 0).map((m) => ({ name: m, value: monthFin.byMethod[m] }))}
+                    dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={36} outerRadius={64} paddingAngle={2}
+                  >
+                    {['Pix', 'Dinheiro', 'Débito', 'Crédito'].filter((m) => (monthFin.byMethod[m] || 0) > 0).map((m) => <Cell key={m} fill={METHOD_COLORS[m]} />)}
+                  </Pie>
+                  <RTooltip formatter={(v: any) => `R$ ${Number(v).toLocaleString('pt-BR')}`} contentStyle={{ borderRadius: 12, border: '1px solid #eee', fontSize: 12 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
       )}
