@@ -10,7 +10,8 @@ import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, C
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { StickyNote, Loader2, UserPlus } from 'lucide-react';
+import { StickyNote, Loader2, UserPlus, FileText, FileSpreadsheet } from 'lucide-react';
+import { exportReportCsv, exportReportPdf, type FinancialReport, type ReportRow } from '../lib/exportReport';
 
 type Booking = {
   id: string;
@@ -107,6 +108,7 @@ export default function CompanyDashboardPage() {
     : 'overview';
   const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'services' | 'clients'>(initialTab);
   const [clientSearch, setClientSearch] = useState('');
+  const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'all'>('month');
   const [noteClient, setNoteClient] = useState<{ name: string; phone: string } | null>(null);
   const [noteText, setNoteText] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
@@ -322,6 +324,47 @@ export default function CompanyDashboardPage() {
     methodTotals[m] = (methodTotals[m] || 0) + (b.services?.price || 0);
   });
   const monthToReceive = Math.max(monthRevenue - monthReceived, 0);
+
+  // ── Relatório por período (Hoje/Semana/Mês/Tudo) ────────────────────────────
+  const periodStart = (() => {
+    const d = new Date(now);
+    if (period === 'today') { d.setHours(0, 0, 0, 0); return d; }
+    if (period === 'week') { d.setDate(d.getDate() - 6); d.setHours(0, 0, 0, 0); return d; }
+    if (period === 'month') return new Date(now.getFullYear(), now.getMonth(), 1);
+    return new Date(0);
+  })();
+  const periodLabel = period === 'today' ? 'Hoje'
+    : period === 'week' ? 'Últimos 7 dias'
+    : period === 'month' ? now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })
+    : 'Todo o período';
+  const commissionByMember: Record<string, number> = {};
+  memberStats.forEach((m) => { commissionByMember[m.id] = m.commissionPercent; });
+
+  const reportMemberMap: Record<string, ReportRow> = {};
+  const reportMethod: Record<string, number> = {};
+  PAYMENT_METHODS.forEach((m) => { reportMethod[m] = 0; });
+  let repCount = 0, repRevenue = 0, repReceived = 0;
+  bookings.forEach((b: any) => {
+    if (b.status === 'cancelled' || new Date(b.start_time) < periodStart) return;
+    const price = b.services?.price || 0;
+    repCount++; repRevenue += price;
+    const name = membersMap[b.member_id] || '—';
+    const row = reportMemberMap[b.member_id] || (reportMemberMap[b.member_id] = { name, count: 0, revenue: 0, received: 0, commission: 0 });
+    row.count++; row.revenue += price;
+    if (b.paid) {
+      repReceived += price; row.received += price;
+      const m = b.payment_method || 'Outro';
+      reportMethod[m] = (reportMethod[m] || 0) + price;
+    }
+  });
+  Object.entries(reportMemberMap).forEach(([id, row]) => { row.commission = row.revenue * (commissionByMember[id] || 0) / 100; });
+  const report: FinancialReport = {
+    orgName,
+    periodLabel,
+    totals: { count: repCount, revenue: repRevenue, received: repReceived, toReceive: Math.max(repRevenue - repReceived, 0) },
+    perMember: Object.values(reportMemberMap).sort((a, b) => b.revenue - a.revenue),
+    perMethod: PAYMENT_METHODS.map((m) => ({ method: m, value: reportMethod[m] || 0 })),
+  };
 
   const avgTicket = totalBookings > 0 ? totalRevenue / totalBookings : 0;
   const cancellationRate = bookings.length > 0 ? ((cancelledTotal / bookings.length) * 100).toFixed(0) : '0';
@@ -545,6 +588,72 @@ export default function CompanyDashboardPage() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Relatório por período */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+              <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Relatório financeiro</h2>
+                  <p className="text-xs text-gray-400">Por profissional e forma de pagamento · {periodLabel}</p>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex bg-gray-100 rounded-xl p-1">
+                    {([['today', 'Hoje'], ['week', 'Semana'], ['month', 'Mês'], ['all', 'Tudo']] as const).map(([v, label]) => (
+                      <button
+                        key={v}
+                        onClick={() => setPeriod(v)}
+                        className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${period === v ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => exportReportCsv(report)} className="flex items-center gap-1.5 bg-white border border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600 text-sm font-medium px-3 py-2 rounded-xl transition-all" title="Exportar CSV">
+                    <FileSpreadsheet className="w-4 h-4" /> CSV
+                  </button>
+                  <button onClick={() => exportReportPdf(report)} className="flex items-center gap-1.5 bg-white border border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600 text-sm font-medium px-3 py-2 rounded-xl transition-all" title="Exportar PDF">
+                    <FileText className="w-4 h-4" /> PDF
+                  </button>
+                </div>
+              </div>
+
+              {/* Resumo do período */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                <div className="bg-indigo-50 rounded-xl p-3"><p className="text-lg font-extrabold text-indigo-700">{report.totals.count}</p><p className="text-xs text-indigo-400">atendimentos</p></div>
+                <div className="bg-gray-50 rounded-xl p-3"><p className="text-sm font-extrabold text-gray-800">R$ {report.totals.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</p><p className="text-xs text-gray-400">faturamento</p></div>
+                <div className="bg-emerald-50 rounded-xl p-3"><p className="text-sm font-extrabold text-emerald-700">R$ {report.totals.received.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</p><p className="text-xs text-emerald-400">recebido</p></div>
+                <div className="bg-amber-50 rounded-xl p-3"><p className="text-sm font-extrabold text-amber-700">R$ {report.totals.toReceive.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</p><p className="text-xs text-amber-400">a receber</p></div>
+              </div>
+
+              {report.perMember.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-6">Nenhum atendimento neste período.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                        <th className="pb-2 pr-4 font-semibold">Profissional</th>
+                        <th className="pb-2 pr-4 font-semibold text-right">Atend.</th>
+                        <th className="pb-2 pr-4 font-semibold text-right">Faturamento</th>
+                        <th className="pb-2 pr-4 font-semibold text-right">Recebido</th>
+                        <th className="pb-2 font-semibold text-right">Comissão</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {report.perMember.map((m: ReportRow) => (
+                        <tr key={m.name} className="border-b border-gray-50 last:border-0">
+                          <td className="py-2 pr-4 font-medium text-gray-800">{m.name}</td>
+                          <td className="py-2 pr-4 text-right text-gray-600">{m.count}</td>
+                          <td className="py-2 pr-4 text-right text-gray-700">R$ {m.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</td>
+                          <td className="py-2 pr-4 text-right text-emerald-600 font-semibold">R$ {m.received.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</td>
+                          <td className="py-2 text-right text-violet-600">R$ {m.commission.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
