@@ -16,7 +16,15 @@ type Service = {
   price: number;
   organization_id: string;
   is_combo?: boolean;
+  unit_label?: string | null;
+  is_product?: boolean;
 };
+
+const CATEGORY_SUGGESTIONS = [
+  'Cabelo', 'Barba', 'Unhas', 'Estética Facial', 'Estética Corporal', 'Massagem', 'Depilação', 'Maquiagem',
+  'Personal Trainer', 'Musculação', 'Pilates', 'Yoga', 'Fisioterapia', 'Nutrição', 'Saúde', 'Psicologia',
+  'Consultoria', 'Aula', 'Curso', 'Terapia', 'Produto', 'Outro',
+];
 
 type Props = {
   memberId: string;
@@ -77,6 +85,8 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
   const [newCommission, setNewCommission] = useState('');
   const [newDuration, setNewDuration] = useState(30);
   const [newPrice, setNewPrice] = useState(0);
+  const [newType, setNewType] = useState<'service' | 'session' | 'product'>('service');
+  const [newUnit, setNewUnit] = useState('');
 
   // Inline edit state
   const [editing, setEditing] = useState<EditingState | null>(null);
@@ -135,13 +145,15 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
         .insert({
           name: newName,
           description: newDescription || null,
-          category: newCategory || null,
+          category: newCategory || (newType === 'product' ? 'Produto' : null),
           notes: newNotes || null,
           materials: newMaterials || null,
           commission_percent: newCommission ? parseFloat(newCommission) : null,
-          duration: newDuration,
+          duration: newType === 'service' ? newDuration : (newType === 'session' ? newDuration : 0),
           price: newPrice,
           organization_id: organizationId,
+          is_product: newType === 'product',
+          unit_label: newType === 'session' ? (newUnit.trim() || 'sessão') : (newType === 'product' ? (newUnit.trim() || 'unidade') : null),
         })
         .select()
         .single();
@@ -153,8 +165,9 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
         queryClient.invalidateQueries(['services', organizationId]);
         setNewName(''); setNewDescription(''); setNewCategory(''); setNewNotes('');
         setNewMaterials(''); setNewCommission(''); setNewDuration(30); setNewPrice(0);
+        setNewType('service'); setNewUnit('');
         setShowCreate(false);
-        toast.success('Serviço criado com sucesso!');
+        toast.success(newType === 'product' ? 'Produto criado!' : 'Serviço criado!');
       },
     }
   );
@@ -385,27 +398,33 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
       {/* Create form */}
       {showCreate && organizationId && (
         <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-5 mb-6">
-          <h3 className="font-semibold text-indigo-800 mb-4">Criar novo serviço</h3>
+          <datalist id="cat-suggestions">
+            {CATEGORY_SUGGESTIONS.map((c) => <option key={c} value={c} />)}
+          </datalist>
+          <h3 className="font-semibold text-indigo-800 mb-3">Cadastrar {newType === 'product' ? 'produto' : 'serviço'}</h3>
+
+          {/* Tipo */}
+          <div className="grid grid-cols-3 gap-1 bg-white border border-indigo-100 rounded-xl p-1 mb-4">
+            {([['service', 'Por horário'], ['session', 'Por sessão/unidade'], ['product', 'Produto']] as const).map(([v, label]) => (
+              <button key={v} type="button" onClick={() => setNewType(v)} className={`py-2 text-xs font-semibold rounded-lg transition-all ${newType === v ? 'gradient-brand text-white' : 'text-gray-500 hover:text-gray-700'}`}>
+                {label}
+              </button>
+            ))}
+          </div>
+          <p className="text-[11px] text-indigo-500 mb-4">
+            {newType === 'service' && 'Agendável pela agenda (ex.: corte 40min, aula 60min).'}
+            {newType === 'session' && 'Vendido por unidade (ex.: 1 sessão, 1 aula, pacote). Duração opcional.'}
+            {newType === 'product' && 'Item à venda, sem agendamento (ex.: whey protein, cosmético).'}
+          </p>
+
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <div className="sm:col-span-2">
-              <label className="block text-xs font-medium text-gray-600 mb-1">Nome do Serviço *</label>
-              <input type="text" placeholder="Ex: Corte Feminino" value={newName} onChange={(e) => setNewName(e.target.value)} className={inputCls} />
+              <label className="block text-xs font-medium text-gray-600 mb-1">Nome *</label>
+              <input type="text" placeholder={newType === 'product' ? 'Ex: Whey Protein 900g' : 'Ex: Corte Feminino'} value={newName} onChange={(e) => setNewName(e.target.value)} className={inputCls} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Categoria</label>
-              <select value={newCategory} onChange={(e) => setNewCategory(e.target.value)} className={inputCls}>
-                <option value="">Selecione...</option>
-                <option>Cabelo</option>
-                <option>Barba</option>
-                <option>Unhas</option>
-                <option>Estética Facial</option>
-                <option>Estética Corporal</option>
-                <option>Massagem</option>
-                <option>Depilação</option>
-                <option>Maquiagem</option>
-                <option>Saúde</option>
-                <option>Outro</option>
-              </select>
+              <input type="text" list="cat-suggestions" placeholder="Ex: Musculação, Cabelo…" value={newCategory} onChange={(e) => setNewCategory(e.target.value)} className={inputCls} />
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Comissão (%)</label>
@@ -441,10 +460,20 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
                 className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all resize-none"
               />
             </div>
-            <div>
-              <label className="block text-xs font-medium text-gray-600 mb-1">Duração (minutos) *</label>
-              <input type="number" min={5} placeholder="30" value={newDuration} onChange={(e) => setNewDuration(parseInt(e.target.value) || 0)} className={inputCls} />
-            </div>
+            {newType !== 'product' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">
+                  Duração (min) {newType === 'service' ? '*' : <span className="text-gray-400 font-normal">(opcional)</span>}
+                </label>
+                <input type="number" min={0} placeholder={newType === 'service' ? '30' : '0 = sem agenda'} value={newDuration} onChange={(e) => setNewDuration(parseInt(e.target.value) || 0)} className={inputCls} />
+              </div>
+            )}
+            {newType !== 'service' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Unidade</label>
+                <input type="text" placeholder={newType === 'product' ? 'unidade' : 'sessão, aula, hora…'} value={newUnit} onChange={(e) => setNewUnit(e.target.value)} className={inputCls} />
+              </div>
+            )}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Preço (R$) *</label>
               <input type="number" min={0} step="0.01" placeholder="50.00" value={newPrice} onChange={(e) => setNewPrice(parseFloat(e.target.value) || 0)} className={inputCls} />
@@ -521,6 +550,9 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
                         {service.is_combo && (
                           <span className="text-xs bg-violet-600 text-white px-2 py-0.5 rounded-full font-medium">Combo</span>
                         )}
+                        {service.is_product && (
+                          <span className="text-xs bg-amber-500 text-white px-2 py-0.5 rounded-full font-medium">Produto</span>
+                        )}
                         {service.category && !service.is_combo && (
                           <span className="text-xs bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full font-medium">
                             {service.category}
@@ -544,10 +576,14 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
                         </p>
                       )}
                       <div className="flex items-center gap-3 mt-2 flex-wrap">
-                        <span className="flex items-center gap-1 text-sm text-gray-400">
-                          <ClockIcon /> {service.duration} min
+                        {service.duration > 0 && (
+                          <span className="flex items-center gap-1 text-sm text-gray-400">
+                            <ClockIcon /> {service.duration} min
+                          </span>
+                        )}
+                        <span className="text-sm font-bold text-emerald-600">
+                          R$ {service.price.toFixed(2)}{service.unit_label ? ` / ${service.unit_label}` : ''}
                         </span>
-                        <span className="text-sm font-bold text-emerald-600">R$ {service.price.toFixed(2)}</span>
                         {service.commission_percent != null && (
                           <span className="text-xs text-amber-600 font-medium">{service.commission_percent}% comissão</span>
                         )}
