@@ -19,7 +19,7 @@ type Booking = {
   services: { name: string; price: number } | null;
 };
 
-const PAYMENT_METHODS = ['Pix', 'Dinheiro', 'Cartão'];
+const PAYMENT_METHODS = ['Pix', 'Dinheiro', 'Débito', 'Crédito'];
 
 type Props = { memberId: string };
 
