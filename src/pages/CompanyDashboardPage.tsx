@@ -10,7 +10,7 @@ import { ResponsiveContainer, ComposedChart, Bar, Line, XAxis, YAxis, Tooltip, C
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { StickyNote, Loader2 } from 'lucide-react';
+import { StickyNote, Loader2, UserPlus } from 'lucide-react';
 
 type Booking = {
   id: string;
@@ -108,6 +108,13 @@ export default function CompanyDashboardPage() {
   const [noteText, setNoteText] = useState('');
   const [noteSaving, setNoteSaving] = useState(false);
   const [notedPhones, setNotedPhones] = useState<Set<string>>(new Set());
+  // Cadastro de clientes (tabela clients)
+  const [registeredClients, setRegisteredClients] = useState<{ name: string; phone: string; email: string | null; notes: string | null }[]>([]);
+  const [newClientOpen, setNewClientOpen] = useState(false);
+  const [ncName, setNcName] = useState('');
+  const [ncPhone, setNcPhone] = useState('');
+  const [ncEmail, setNcEmail] = useState('');
+  const [ncSaving, setNcSaving] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -211,32 +218,36 @@ export default function CompanyDashboardPage() {
 
   const handleLogout = async () => { await supabase.auth.signOut(); };
 
-  // Telefones que já têm anotação (para mostrar o indicador)
-  useEffect(() => {
+  // Carrega o cadastro de clientes (nome, telefone, e-mail, notas)
+  const loadClients = () => {
     if (!orgId) return;
-    supabase.from('client_notes').select('client_phone').eq('organization_id', orgId)
-      .then(({ data }) => setNotedPhones(new Set((data || []).map((n) => n.client_phone))));
-  }, [orgId]);
+    supabase.from('clients').select('name, phone, email, notes').eq('organization_id', orgId)
+      .then(({ data }) => {
+        const rows = data || [];
+        setRegisteredClients(rows);
+        setNotedPhones(new Set(rows.filter((c) => c.notes).map((c) => (c.phone || '').replace(/\D/g, ''))));
+      });
+  };
+  useEffect(loadClients, [orgId]);
 
   const openNote = async (name: string, phone: string) => {
     const digits = phone.replace(/\D/g, '');
     setNoteClient({ name, phone: digits });
-    setNoteText('');
-    const { data } = await supabase
-      .from('client_notes').select('note')
-      .eq('organization_id', orgId).eq('client_phone', digits).maybeSingle();
-    setNoteText(data?.note || '');
+    const existing = registeredClients.find((c) => (c.phone || '').replace(/\D/g, '') === digits);
+    setNoteText(existing?.notes || '');
   };
 
   const saveNote = async () => {
     if (!noteClient) return;
     setNoteSaving(true);
-    const { error } = await supabase.from('client_notes').upsert({
+    // Upsert no cadastro de clientes (cria o cliente se ainda não existir)
+    const { error } = await supabase.from('clients').upsert({
       organization_id: orgId,
-      client_phone: noteClient.phone,
-      note: noteText.trim() || null,
+      name: noteClient.name,
+      phone: noteClient.phone,
+      notes: noteText.trim() || null,
       updated_at: new Date().toISOString(),
-    }, { onConflict: 'organization_id,client_phone' });
+    }, { onConflict: 'organization_id,phone' });
     setNoteSaving(false);
     if (error) { toast.error('Não foi possível salvar a anotação.'); return; }
     setNotedPhones((prev) => {
@@ -245,7 +256,25 @@ export default function CompanyDashboardPage() {
       return next;
     });
     setNoteClient(null);
+    loadClients();
     toast.success('Anotação salva!');
+  };
+
+  const saveNewClient = async () => {
+    if (ncName.trim().length < 2) { toast.error('Informe o nome.'); return; }
+    setNcSaving(true);
+    const { error } = await supabase.from('clients').upsert({
+      organization_id: orgId,
+      name: ncName.trim(),
+      phone: ncPhone.trim() || null,
+      email: ncEmail.trim() || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'organization_id,phone' });
+    setNcSaving(false);
+    if (error) { toast.error('Não foi possível cadastrar o cliente.'); return; }
+    setNewClientOpen(false); setNcName(''); setNcPhone(''); setNcEmail('');
+    loadClients();
+    toast.success('Cliente cadastrado!');
   };
 
   if (loading || !sidebarProps) return <AppLoading />;
@@ -305,6 +334,12 @@ export default function CompanyDashboardPage() {
     if (b.start_time > c.lastVisit) { c.lastVisit = b.start_time; c.name = b.client_name; }
     c.memberCount[b.member_id] = (c.memberCount[b.member_id] || 0) + 1;
   });
+  // Inclui clientes cadastrados que ainda não têm agendamento (visitas = 0)
+  registeredClients.forEach((rc) => {
+    const key = (rc.phone || '').replace(/\D/g, '') || rc.name;
+    if (!key || clientMap[key]) return;
+    clientMap[key] = { name: rc.name, phone: rc.phone || '', visits: 0, lastVisit: '', revenue: 0, favoriteMember: '', memberCount: {} };
+  });
   const clientStats: ClientStat[] = Object.values(clientMap)
     .map((c) => ({
       ...c,
@@ -312,7 +347,7 @@ export default function CompanyDashboardPage() {
         Object.entries(c.memberCount).sort((a, b) => b[1] - a[1])[0]?.[0] || ''
       ] || '—',
     }))
-    .sort((a, b) => b.visits - a.visits || b.lastVisit.localeCompare(a.lastVisit));
+    .sort((a, b) => b.visits - a.visits || (b.lastVisit || '').localeCompare(a.lastVisit || ''));
   const recurringClients = clientStats.filter((c) => c.visits > 1).length;
   const q = clientSearch.trim().toLowerCase();
   const filteredClients = q
@@ -325,7 +360,7 @@ export default function CompanyDashboardPage() {
       c.name,
       c.phone,
       String(c.visits),
-      new Date(c.lastVisit).toLocaleDateString('pt-BR'),
+      c.lastVisit ? new Date(c.lastVisit).toLocaleDateString('pt-BR') : '',
       c.favoriteMember,
       c.revenue.toFixed(2).replace('.', ','),
     ]);
@@ -602,11 +637,11 @@ export default function CompanyDashboardPage() {
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
                 <div>
-                  <h2 className="text-lg font-bold text-gray-900">Histórico de Clientes</h2>
-                  <p className="text-xs text-gray-400">Gerado automaticamente a partir dos agendamentos</p>
+                  <h2 className="text-lg font-bold text-gray-900">Clientes</h2>
+                  <p className="text-xs text-gray-400">Cadastrados e agregados dos agendamentos</p>
                 </div>
-                {clientStats.length > 0 && (
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {clientStats.length > 0 && (
                     <input
                       type="text"
                       value={clientSearch}
@@ -614,6 +649,8 @@ export default function CompanyDashboardPage() {
                       placeholder="Buscar por nome ou telefone…"
                       className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all w-full sm:w-56"
                     />
+                  )}
+                  {clientStats.length > 0 && (
                     <button
                       onClick={exportClientsCsv}
                       className="shrink-0 flex items-center gap-1.5 bg-white border border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600 text-sm font-medium px-3 py-2 rounded-xl transition-all"
@@ -621,8 +658,11 @@ export default function CompanyDashboardPage() {
                     >
                       ↓ CSV
                     </button>
-                  </div>
-                )}
+                  )}
+                  <Button onClick={() => setNewClientOpen(true)} className="gradient-brand shadow-md shadow-indigo-500/20">
+                    <UserPlus className="w-4 h-4" /> Novo cliente
+                  </Button>
+                </div>
               </div>
               {clientStats.length === 0 ? (
                 <p className="text-gray-400 text-sm text-center py-8">Nenhum cliente ainda. Compartilhe sua página pública!</p>
@@ -658,7 +698,7 @@ export default function CompanyDashboardPage() {
                             </div>
                           </td>
                           <td className="py-3 pr-4 font-bold text-gray-700">{c.visits}</td>
-                          <td className="py-3 pr-4 text-gray-500">{new Date(c.lastVisit).toLocaleDateString('pt-BR')}</td>
+                          <td className="py-3 pr-4 text-gray-500">{c.lastVisit ? new Date(c.lastVisit).toLocaleDateString('pt-BR') : '—'}</td>
                           <td className="py-3 pr-4 text-gray-500 hidden md:table-cell">{c.favoriteMember}</td>
                           <td className="py-3 pr-4 text-right font-semibold text-emerald-600">
                             R$ {c.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}
@@ -863,6 +903,37 @@ export default function CompanyDashboardPage() {
           <div className="flex justify-end">
             <Button onClick={saveNote} disabled={noteSaving} className="gradient-brand shadow-md shadow-indigo-500/20">
               {noteSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar anotação'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de novo cliente */}
+      <Dialog open={newClientOpen} onOpenChange={setNewClientOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Novo cliente</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-gray-400 -mt-2">Cadastre para reusar no agendamento manual (autocomplete).</p>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Nome *</label>
+              <input type="text" value={ncName} onChange={(e) => setNcName(e.target.value)} placeholder="Nome do cliente" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Telefone</label>
+                <input type="tel" value={ncPhone} onChange={(e) => setNcPhone(e.target.value)} placeholder="(XX) XXXXX-XXXX" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">E-mail</label>
+                <input type="email" value={ncEmail} onChange={(e) => setNcEmail(e.target.value)} placeholder="opcional" className="w-full px-4 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent" />
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button onClick={saveNewClient} disabled={ncSaving} className="gradient-brand shadow-md shadow-indigo-500/20">
+              {ncSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Cadastrar cliente'}
             </Button>
           </div>
         </DialogContent>

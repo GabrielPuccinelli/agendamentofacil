@@ -203,6 +203,7 @@ export default function DashboardPage() {
             open={newBookingOpen}
             onOpenChange={setNewBookingOpen}
             defaultMemberId={memberId}
+            organizationId={organizationId}
             isAdmin={isAdmin}
             members={membersList.map((m) => ({ id: m.id, name: m.name }))}
             onCreated={() => setRefreshKey((k) => k + 1)}
