@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, BarChart3, Scissors, Users, UserPlus,
   UserCog, LogOut, CalendarDays, ExternalLink, Copy, Check,
-  Contact, Building2, QrCode,
+  Contact, Building2, QrCode, ShoppingBag,
 } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
@@ -186,6 +186,7 @@ export const SidebarContent: React.FC<SidebarProps & { onNavigate?: () => void }
               <SectionLabel>Empresa</SectionLabel>
               <NavItem to="/company/dashboard" icon={<BarChart3 className="w-5 h-5" />} label="Visão Geral" onNavigate={onNavigate} />
               <NavItem to="/company/bookings" icon={<CalendarDays className="w-5 h-5" />} label="Agendamentos" onNavigate={onNavigate} />
+              <NavItem to="/company/sales" icon={<ShoppingBag className="w-5 h-5" />} label="Produtos" onNavigate={onNavigate} />
               <NavItem to="/company/clients" icon={<Contact className="w-5 h-5" />} label="Clientes" onNavigate={onNavigate} />
               <NavItem to="/company/services" icon={<Scissors className="w-5 h-5" />} label="Serviços" onNavigate={onNavigate} />
               <NavItem to="/company/team" icon={<Users className="w-5 h-5" />} label="Equipe" onNavigate={onNavigate} />
