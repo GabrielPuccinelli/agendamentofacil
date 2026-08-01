@@ -89,6 +89,7 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
   const [newType, setNewType] = useState<'service' | 'session' | 'product'>('service');
   const [newUnit, setNewUnit] = useState('');
   const [newStock, setNewStock] = useState('');
+  const [newLowStock, setNewLowStock] = useState('5');
 
   // Inline edit state
   const [editing, setEditing] = useState<EditingState | null>(null);
@@ -157,6 +158,7 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
           is_product: newType === 'product',
           unit_label: newType === 'session' ? (newUnit.trim() || 'sessão') : (newType === 'product' ? (newUnit.trim() || 'unidade') : null),
           stock: newType === 'product' && newStock !== '' ? parseInt(newStock) : null,
+          low_stock_threshold: newType === 'product' && newLowStock !== '' ? parseInt(newLowStock) : 5,
         })
         .select()
         .single();
@@ -168,7 +170,7 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
         queryClient.invalidateQueries(['services', organizationId]);
         setNewName(''); setNewDescription(''); setNewCategory(''); setNewNotes('');
         setNewMaterials(''); setNewCommission(''); setNewDuration(30); setNewPrice(0);
-        setNewType('service'); setNewUnit(''); setNewStock('');
+        setNewType('service'); setNewUnit(''); setNewStock(''); setNewLowStock('5');
         setShowCreate(false);
         toast.success(newType === 'product' ? 'Produto criado!' : 'Serviço criado!');
       },
@@ -478,10 +480,16 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
               </div>
             )}
             {newType === 'product' && (
-              <div>
-                <label className="block text-xs font-medium text-gray-600 mb-1">Estoque <span className="text-gray-400 font-normal">(opcional)</span></label>
-                <input type="number" min={0} placeholder="Ex: 20" value={newStock} onChange={(e) => setNewStock(e.target.value)} className={inputCls} />
-              </div>
+              <>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Estoque <span className="text-gray-400 font-normal">(opcional)</span></label>
+                  <input type="number" min={0} placeholder="Ex: 20" value={newStock} onChange={(e) => setNewStock(e.target.value)} className={inputCls} />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Avisar quando ≤</label>
+                  <input type="number" min={0} placeholder="5" value={newLowStock} onChange={(e) => setNewLowStock(e.target.value)} className={inputCls} />
+                </div>
+              </>
             )}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Preço (R$) *</label>
