@@ -13,7 +13,7 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ConfirmButton } from '../components/ConfirmButton';
-import { StickyNote, Loader2, UserPlus, FileText, FileSpreadsheet, Eye, EyeOff } from 'lucide-react';
+import { StickyNote, Loader2, UserPlus, FileText, FileSpreadsheet, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { exportReportCsv, exportReportPdf, type FinancialReport, type ReportRow } from '../lib/exportReport';
 
 type Booking = {
@@ -130,6 +130,7 @@ export default function CompanyDashboardPage() {
   const [registeredClients, setRegisteredClients] = useState<{ name: string; phone: string; email: string | null; notes: string | null }[]>([]);
   const [saleEdit, setSaleEdit] = useState<{ id: string; serviceId: string | null; name: string; unit: number; qty: number; oldQty: number; method: string } | null>(null);
   const [saleSaving, setSaleSaving] = useState(false);
+  const [products, setProducts] = useState<{ id: string; name: string; stock: number | null; low_stock_threshold: number }[]>([]);
   const [detailClient, setDetailClient] = useState<ClientStat | null>(null);
   const [detailEdit, setDetailEdit] = useState({ name: '', phone: '', email: '' });
   const [detailSaving, setDetailSaving] = useState(false);
@@ -269,6 +270,7 @@ export default function CompanyDashboardPage() {
     if (delta !== 0 && saleEdit.serviceId) await supabase.rpc('decrement_stock', { p_service_id: saleEdit.serviceId, p_qty: delta });
     setBookings((prev) => prev.map((b) => b.id === saleEdit.id ? { ...b, quantity: newQty, amount: saleEdit.unit * newQty, payment_method: saleEdit.method, paid: true } : b));
     setSaleSaving(false); setSaleEdit(null);
+    loadProducts();
     toast.success('Venda atualizada!');
   };
 
@@ -278,6 +280,7 @@ export default function CompanyDashboardPage() {
     if (b.service_id) await supabase.rpc('decrement_stock', { p_service_id: b.service_id, p_qty: -(b.quantity || 1) });
     setBookings((prev) => prev.filter((x) => x.id !== b.id));
     setSaleEdit(null);
+    loadProducts();
     toast.success('Venda excluída e estoque reposto.');
   };
 
@@ -301,6 +304,21 @@ export default function CompanyDashboardPage() {
       });
   };
   useEffect(loadClients, [orgId]);
+
+  const loadProducts = () => {
+    if (!orgId) return;
+    supabase.from('services').select('id, name, stock, low_stock_threshold').eq('organization_id', orgId).eq('is_product', true).order('name')
+      .then(({ data }) => setProducts((data || []) as any));
+  };
+  useEffect(loadProducts, [orgId]);
+
+  const updateStock = async (id: string, stock: number | null) => {
+    setProducts((prev) => prev.map((p) => p.id === id ? { ...p, stock } : p));
+    const { error } = await supabase.from('services').update({ stock }).eq('id', id);
+    if (error) toast.error('Não foi possível salvar o estoque.');
+  };
+
+  const lowStock = products.filter((p) => p.stock != null && p.stock <= p.low_stock_threshold);
 
   const openNote = async (name: string, phone: string) => {
     const digits = phone.replace(/\D/g, '');
@@ -1023,6 +1041,19 @@ export default function CompanyDashboardPage() {
               </div>
             </div>
 
+            {/* Alerta de estoque baixo */}
+            {lowStock.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 mb-6 flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-bold text-amber-900">{lowStock.length} produto(s) com estoque baixo</p>
+                  <p className="text-xs text-amber-600 mt-0.5">
+                    {lowStock.map((p) => `${p.name} (${p.stock})`).join(' · ')}
+                  </p>
+                </div>
+              </div>
+            )}
+
             {/* Resumo */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
               <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p className="text-lg font-extrabold text-indigo-700">{mask(`R$ ${salesTotal.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`)}</p><p className="text-xs text-gray-400">total vendido</p></div>
@@ -1068,6 +1099,40 @@ export default function CompanyDashboardPage() {
 
               {/* Top produtos + estoque */}
               <div className="space-y-6">
+                {/* Controle de estoque (editável) */}
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                  <h3 className="font-bold text-gray-900 mb-1">Controle de estoque</h3>
+                  <p className="text-xs text-gray-400 mb-4">Ajuste as quantidades diretamente</p>
+                  {products.length === 0 ? (
+                    <p className="text-sm text-gray-400">Nenhum produto cadastrado.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {products.map((p) => {
+                        const low = p.stock != null && p.stock <= p.low_stock_threshold;
+                        return (
+                          <div key={p.id} className="flex items-center gap-2">
+                            <span className={`w-2 h-2 rounded-full shrink-0 ${p.stock == null ? 'bg-gray-200' : low ? (p.stock === 0 ? 'bg-red-500' : 'bg-amber-400') : 'bg-emerald-400'}`} />
+                            <span className="text-sm text-gray-700 flex-1 truncate">{p.name}</span>
+                            {p.stock == null ? (
+                              <span className="text-xs text-gray-300">sem controle</span>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <button onClick={() => updateStock(p.id, Math.max(0, (p.stock || 0) - 1))} className="w-6 h-6 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">−</button>
+                                <input
+                                  type="number" min={0} value={p.stock}
+                                  onChange={(e) => updateStock(p.id, Math.max(0, parseInt(e.target.value) || 0))}
+                                  className={`w-12 text-center text-sm border rounded-lg py-1 focus:outline-none focus:ring-1 focus:ring-indigo-400 ${low ? 'border-amber-300 text-amber-700 font-semibold' : 'border-gray-200'}`}
+                                />
+                                <button onClick={() => updateStock(p.id, (p.stock || 0) + 1)} className="w-6 h-6 rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-50">+</button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
                   <h3 className="font-bold text-gray-900 mb-4">Mais vendidos</h3>
                   {topProducts.length === 0 ? (

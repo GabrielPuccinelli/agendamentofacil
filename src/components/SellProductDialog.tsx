@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, ShoppingBag } from 'lucide-react';
 
 type MemberOpt = { id: string; name: string };
-type Product = { id: string; name: string; price: number; stock: number | null };
+type Product = { id: string; name: string; price: number; stock: number | null; low_stock_threshold: number };
 
 type Props = {
   open: boolean;
@@ -35,7 +35,7 @@ export default function SellProductDialog({ open, onOpenChange, defaultMemberId,
 
   useEffect(() => {
     if (!open) return;
-    supabase.from('services').select('id, name, price, stock').eq('organization_id', organizationId).eq('is_product', true).order('name')
+    supabase.from('services').select('id, name, price, stock, low_stock_threshold').eq('organization_id', organizationId).eq('is_product', true).order('name')
       .then(({ data }) => {
         setProducts((data || []) as Product[]);
         setProductId((prev) => (data || []).some((p: any) => p.id === prev) ? prev : ((data || [])[0]?.id || ''));
@@ -68,6 +68,10 @@ export default function SellProductDialog({ open, onOpenChange, defaultMemberId,
     if (error) { setSaving(false); toast.error('Não foi possível registrar a venda.'); return; }
     if (product.stock != null) {
       await supabase.rpc('decrement_stock', { p_service_id: product.id, p_qty: qty });
+      const remaining = Math.max(product.stock - qty, 0);
+      if (remaining <= product.low_stock_threshold) {
+        toast.warning(remaining === 0 ? `${product.name} sem estoque!` : `Estoque baixo: ${product.name} (${remaining} restante)`);
+      }
     }
     setSaving(false);
     toast.success('Venda registrada!');
