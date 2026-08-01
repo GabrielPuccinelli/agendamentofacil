@@ -13,8 +13,10 @@ import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { ConfirmButton } from '../components/ConfirmButton';
-import { StickyNote, Loader2, UserPlus, FileText, FileSpreadsheet, Eye, EyeOff, AlertTriangle } from 'lucide-react';
-import { exportReportCsv, exportReportPdf, type FinancialReport, type ReportRow } from '../lib/exportReport';
+import { StickyNote, Loader2, UserPlus, FileText, FileSpreadsheet, Eye, EyeOff, AlertTriangle, Pencil } from 'lucide-react';
+import { exportReportCsv, exportReportPdf, downloadCsv, type FinancialReport, type ReportRow } from '../lib/exportReport';
+
+const statusPt = (s: string) => s === 'cancelled' ? 'Cancelado' : s === 'completed' ? 'Realizado' : s === 'pending' ? 'Pendente' : 'Confirmado';
 
 type Booking = {
   id: string;
@@ -131,6 +133,19 @@ export default function CompanyDashboardPage() {
   const [saleEdit, setSaleEdit] = useState<{ id: string; serviceId: string | null; name: string; unit: number; qty: number; oldQty: number; method: string } | null>(null);
   const [saleSaving, setSaleSaving] = useState(false);
   const [products, setProducts] = useState<{ id: string; name: string; stock: number | null; low_stock_threshold: number }[]>([]);
+  const [expenses, setExpenses] = useState<{ id: string; description: string; category: string | null; amount: number; spent_at: string }[]>([]);
+  const [expDesc, setExpDesc] = useState('');
+  const [expAmount, setExpAmount] = useState('');
+  const [expCategory, setExpCategory] = useState('');
+  const [expSaving, setExpSaving] = useState(false);
+  // Filtros da aba Agendamentos
+  const [bkSearch, setBkSearch] = useState('');
+  const [bkStatus, setBkStatus] = useState('all');
+  const [bkMember, setBkMember] = useState('all');
+  const [bkEdit, setBkEdit] = useState<{ id: string; memberId: string; serviceId: string; date: string; time: string; services: { id: string; name: string; duration: number }[] } | null>(null);
+  const [bkEditSaving, setBkEditSaving] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<string | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
   const [detailClient, setDetailClient] = useState<ClientStat | null>(null);
   const [detailEdit, setDetailEdit] = useState({ name: '', phone: '', email: '' });
   const [detailSaving, setDetailSaving] = useState(false);
@@ -252,6 +267,28 @@ export default function CompanyDashboardPage() {
     toast.success(`Pagamento registrado (${method}).`);
   };
 
+  const exportBookingsCsv = () => {
+    const header = ['Data', 'Hora', 'Cliente', 'Telefone', 'Profissional', 'Serviço', 'Status', 'Pago', 'Forma', 'Valor'];
+    const rows = filteredBookings.map((b: any) => [
+      new Date(b.start_time).toLocaleDateString('pt-BR'),
+      new Date(b.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      b.client_name, b.client_phone || '', membersMap[b.member_id] || '', b.services?.name || '',
+      statusPt(b.status), b.paid ? 'Sim' : 'Não', b.payment_method || '',
+      (b.amount ?? b.services?.price ?? 0).toFixed(2).replace('.', ','),
+    ]);
+    downloadCsv('agendamentos', header, rows);
+  };
+
+  const exportSalesCsv = () => {
+    const header = ['Data', 'Produto', 'Quantidade', 'Vendedor', 'Forma', 'Total'];
+    const rows = productSales.map((b: any) => [
+      new Date(b.start_time).toLocaleDateString('pt-BR'),
+      b.services?.name || '', String(b.quantity), membersMap[b.member_id] || '',
+      b.payment_method || '', (b.amount ?? 0).toFixed(2).replace('.', ','),
+    ]);
+    downloadCsv('vendas-produtos', header, rows);
+  };
+
   const openSaleEdit = (b: any) => {
     const unit = b.quantity > 0 ? (b.amount ?? (b.services?.price || 0)) / b.quantity : (b.services?.price || 0);
     setSaleEdit({ id: b.id, serviceId: b.service_id, name: b.services?.name || 'Produto', unit, qty: b.quantity || 1, oldQty: b.quantity || 1, method: b.payment_method || 'Dinheiro' });
@@ -284,13 +321,44 @@ export default function CompanyDashboardPage() {
     toast.success('Venda excluída e estoque reposto.');
   };
 
-  const setBookingStatus = async (id: string, status: string) => {
-    const patch: any = { status };
-    if (status === 'cancelled') { patch.paid = false; patch.payment_method = null; patch.paid_at = null; }
-    const { error } = await supabase.from('bookings').update(patch).eq('id', id);
-    if (error) { toast.error('Não foi possível atualizar.'); return; }
-    setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status, ...(status === 'cancelled' ? { paid: false, payment_method: null } : {}) } : b));
-    toast.success(status === 'cancelled' ? 'Agendamento cancelado.' : 'Atualizado.');
+  const confirmCancel = async () => {
+    if (!cancelTarget) return;
+    const { error } = await supabase.from('bookings').update({ status: 'cancelled', paid: false, payment_method: null, paid_at: null, cancel_reason: cancelReason.trim() || null }).eq('id', cancelTarget);
+    if (error) { toast.error('Não foi possível cancelar.'); return; }
+    setBookings((prev) => prev.map((b) => b.id === cancelTarget ? { ...b, status: 'cancelled', paid: false, payment_method: null } : b));
+    setCancelTarget(null); setCancelReason('');
+    toast.success('Agendamento cancelado.');
+  };
+
+  const openBkEdit = async (b: any) => {
+    const { data } = await supabase.from('member_services').select('services(id, name, duration)').eq('member_id', b.member_id);
+    const services = (data || []).map((r: any) => r.services).filter((s: any) => s && !s.is_product) as { id: string; name: string; duration: number }[];
+    const d = new Date(b.start_time);
+    const pad = (n: number) => String(n).padStart(2, '0');
+    setBkEdit({
+      id: b.id, memberId: b.member_id, serviceId: b.service_id || (services[0]?.id || ''),
+      date: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`,
+      time: `${pad(d.getHours())}:${pad(d.getMinutes())}`,
+      services,
+    });
+  };
+
+  const saveBkEdit = async () => {
+    if (!bkEdit) return;
+    const svc = bkEdit.services.find((s) => s.id === bkEdit.serviceId);
+    if (!svc || !bkEdit.date || !bkEdit.time) { toast.error('Preencha serviço, data e horário.'); return; }
+    setBkEditSaving(true);
+    const start = new Date(`${bkEdit.date}T${bkEdit.time}:00`);
+    const end = new Date(start.getTime() + (svc.duration || 30) * 60000);
+    const { error } = await supabase.from('bookings').update({ service_id: svc.id, start_time: start.toISOString(), end_time: end.toISOString() }).eq('id', bkEdit.id);
+    setBkEditSaving(false);
+    if (error) {
+      toast.error(error.code === '23P01' ? 'Conflito de horário com outro agendamento.' : 'Não foi possível salvar.');
+      return;
+    }
+    setBookings((prev) => prev.map((b) => b.id === bkEdit.id ? { ...b, service_id: svc.id, start_time: start.toISOString(), end_time: end.toISOString(), services: { ...(b.services || {}), name: svc.name } as any } : b));
+    setBkEdit(null);
+    toast.success('Agendamento atualizado!');
   };
 
   // Carrega o cadastro de clientes (nome, telefone, e-mail, notas)
@@ -319,6 +387,31 @@ export default function CompanyDashboardPage() {
   };
 
   const lowStock = products.filter((p) => p.stock != null && p.stock <= p.low_stock_threshold);
+
+  const loadExpenses = () => {
+    if (!orgId) return;
+    supabase.from('expenses').select('id, description, category, amount, spent_at').eq('organization_id', orgId).order('spent_at', { ascending: false })
+      .then(({ data }) => setExpenses((data || []) as any));
+  };
+  useEffect(loadExpenses, [orgId]);
+
+  const addExpense = async () => {
+    const amt = parseFloat(expAmount);
+    if (!expDesc.trim() || !(amt > 0)) { toast.error('Informe descrição e valor.'); return; }
+    setExpSaving(true);
+    const { error } = await supabase.from('expenses').insert({ organization_id: orgId, description: expDesc.trim(), category: expCategory.trim() || null, amount: amt });
+    setExpSaving(false);
+    if (error) { toast.error('Não foi possível salvar a despesa.'); return; }
+    setExpDesc(''); setExpAmount(''); setExpCategory('');
+    loadExpenses();
+    toast.success('Despesa lançada!');
+  };
+
+  const deleteExpense = async (id: string) => {
+    const { error } = await supabase.from('expenses').delete().eq('id', id);
+    if (error) { toast.error('Não foi possível excluir.'); return; }
+    setExpenses((prev) => prev.filter((e) => e.id !== id));
+  };
 
   const openNote = async (name: string, phone: string) => {
     const digits = phone.replace(/\D/g, '');
@@ -468,6 +561,20 @@ export default function CompanyDashboardPage() {
   const periodBookings = bookings
     .filter((b) => new Date(b.start_time) >= periodStart && !b.services?.is_product)
     .sort((a, b) => b.start_time.localeCompare(a.start_time));
+  const filteredBookings = periodBookings.filter((b) => {
+    if (bkStatus !== 'all' && b.status !== bkStatus) return false;
+    if (bkMember !== 'all' && b.member_id !== bkMember) return false;
+    if (bkSearch) {
+      const q = bkSearch.toLowerCase();
+      if (!(b.client_name?.toLowerCase().includes(q) || (b.services?.name || '').toLowerCase().includes(q) || (b.client_phone || '').includes(q))) return false;
+    }
+    return true;
+  });
+
+  // Despesas e lucro do período
+  const periodExpenses = expenses.filter((e) => new Date(e.spent_at + 'T12:00:00') >= periodStart);
+  const expensesTotal = periodExpenses.reduce((a, e) => a + Number(e.amount), 0);
+  const profit = report.totals.received - expensesTotal;
 
   // ── Vendas de produto do período ────────────────────────────────────────────
   const productSales = bookings
@@ -743,6 +850,41 @@ export default function CompanyDashboardPage() {
               </div>
             </div>
 
+            {/* Despesas e Lucro */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+              <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Despesas e lucro</h2>
+                  <p className="text-xs text-gray-400">Lance as saídas para ver o lucro real · {periodLabel}</p>
+                </div>
+                <div className="flex gap-3">
+                  <div className="text-right"><p className="text-lg font-extrabold text-rose-500">{mask(`R$ ${expensesTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`)}</p><p className="text-[11px] text-gray-400">despesas</p></div>
+                  <div className="text-right"><p className={`text-lg font-extrabold ${profit >= 0 ? 'text-emerald-600' : 'text-red-500'}`}>{mask(`R$ ${profit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`)}</p><p className="text-[11px] text-gray-400">lucro (recebido − despesas)</p></div>
+                </div>
+              </div>
+              {/* Adicionar despesa */}
+              <div className="flex items-end gap-2 flex-wrap mb-4">
+                <input type="text" value={expDesc} onChange={(e) => setExpDesc(e.target.value)} placeholder="Descrição (ex.: aluguel)" className="flex-1 min-w-[140px] px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <input type="text" value={expCategory} onChange={(e) => setExpCategory(e.target.value)} placeholder="Categoria" className="w-28 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <input type="number" min={0} step="0.01" value={expAmount} onChange={(e) => setExpAmount(e.target.value)} placeholder="R$" className="w-24 px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <Button onClick={addExpense} disabled={expSaving} className="gradient-brand">{expSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Lançar'}</Button>
+              </div>
+              {periodExpenses.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-2">Nenhuma despesa no período.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                  {periodExpenses.map((e) => (
+                    <div key={e.id} className="flex items-center gap-3 text-sm border-b border-gray-50 last:border-0 py-1.5">
+                      <span className="text-gray-400 text-xs w-16 shrink-0">{new Date(e.spent_at + 'T12:00:00').toLocaleDateString('pt-BR')}</span>
+                      <span className="flex-1 text-gray-700 truncate">{e.description}{e.category && <span className="text-gray-400"> · {e.category}</span>}</span>
+                      <span className="font-semibold text-rose-500">R$ {Number(e.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                      <button onClick={() => deleteExpense(e.id)} className="text-gray-300 hover:text-red-500 text-xs px-1">✕</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Relatório por período */}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
               <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
@@ -946,16 +1088,34 @@ export default function CompanyDashboardPage() {
             <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">Agendamentos</h2>
-                <p className="text-xs text-gray-400">{periodLabel} · {periodBookings.length} registro(s)</p>
+                <p className="text-xs text-gray-400">{periodLabel} · {filteredBookings.length} de {periodBookings.length}</p>
               </div>
-              <div className="flex bg-gray-100 rounded-xl p-1">
-                {([['today', 'Hoje'], ['week', 'Semana'], ['month', 'Mês'], ['all', 'Tudo']] as const).map(([v, label]) => (
-                  <button key={v} onClick={() => setPeriod(v)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${period === v ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>{label}</button>
-                ))}
+              <div className="flex items-center gap-2">
+                <button onClick={() => exportBookingsCsv()} className="flex items-center gap-1.5 bg-white border border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600 text-sm font-medium px-3 py-2 rounded-xl transition-all" title="Exportar CSV"><FileSpreadsheet className="w-4 h-4" /> CSV</button>
+                <div className="flex bg-gray-100 rounded-xl p-1">
+                  {([['today', 'Hoje'], ['week', 'Semana'], ['month', 'Mês'], ['all', 'Tudo']] as const).map(([v, label]) => (
+                    <button key={v} onClick={() => setPeriod(v)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${period === v ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>{label}</button>
+                  ))}
+                </div>
               </div>
             </div>
-            {periodBookings.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8">Nenhum agendamento neste período.</p>
+            {/* Filtros */}
+            <div className="flex items-center gap-2 flex-wrap mb-4">
+              <input type="text" value={bkSearch} onChange={(e) => setBkSearch(e.target.value)} placeholder="Buscar cliente, serviço ou telefone…" className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 w-full sm:w-64" />
+              <select value={bkStatus} onChange={(e) => setBkStatus(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="all">Todos os status</option>
+                <option value="confirmed">Confirmado</option>
+                <option value="pending">Pendente</option>
+                <option value="completed">Realizado</option>
+                <option value="cancelled">Cancelado</option>
+              </select>
+              <select value={bkMember} onChange={(e) => setBkMember(e.target.value)} className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                <option value="all">Todos os profissionais</option>
+                {Object.entries(membersMap).map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+              </select>
+            </div>
+            {filteredBookings.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-8">Nenhum agendamento com esses filtros.</p>
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
@@ -970,7 +1130,7 @@ export default function CompanyDashboardPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {periodBookings.map((b: any) => {
+                    {filteredBookings.map((b: any) => {
                       const cs = clientStats.find((c) => (c.phone || '').replace(/\D/g, '') === (b.client_phone || '').replace(/\D/g, '') && b.client_phone);
                       return (
                         <tr key={b.id} className="border-b border-gray-50 last:border-0">
@@ -997,19 +1157,24 @@ export default function CompanyDashboardPage() {
                             </span>
                           </td>
                           <td className="py-2 text-right">
-                            {b.status === 'cancelled' ? (
-                              <span className="text-xs text-gray-300">—</span>
-                            ) : b.paid ? (
-                              <span className="text-xs text-emerald-600 font-semibold">{mask(`R$ ${(b.amount ?? (b.services?.price || 0)).toFixed(0)}`)} · {b.payment_method}</span>
-                            ) : (
-                              <div className="flex items-center gap-1 justify-end">
-                                <select defaultValue="" onChange={(e) => { if (e.target.value) markBookingPaid(b.id, e.target.value); }} className="text-[11px] border border-gray-200 rounded-md px-1 py-0.5 text-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-400">
-                                  <option value="">Pagar…</option>
-                                  {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
-                                </select>
-                                <button onClick={() => setBookingStatus(b.id, 'cancelled')} className="text-[11px] text-gray-400 hover:text-red-500 px-1" title="Cancelar">✕</button>
-                              </div>
-                            )}
+                            <div className="flex items-center gap-1 justify-end">
+                              {b.status === 'cancelled' ? (
+                                <span className="text-xs text-gray-300">—</span>
+                              ) : b.paid ? (
+                                <span className="text-xs text-emerald-600 font-semibold">{mask(`R$ ${(b.amount ?? (b.services?.price || 0)).toFixed(0)}`)} · {b.payment_method}</span>
+                              ) : (
+                                <>
+                                  <select defaultValue="" onChange={(e) => { if (e.target.value) markBookingPaid(b.id, e.target.value); }} className="text-[11px] border border-gray-200 rounded-md px-1 py-0.5 text-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-400">
+                                    <option value="">Pagar…</option>
+                                    {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+                                  </select>
+                                  <button onClick={() => setCancelTarget(b.id)} className="text-[11px] text-gray-400 hover:text-red-500 px-1" title="Cancelar">✕</button>
+                                </>
+                              )}
+                              {b.status !== 'cancelled' && (
+                                <button onClick={() => openBkEdit(b)} className="text-gray-300 hover:text-indigo-600 px-1" title="Editar agendamento"><Pencil className="w-3.5 h-3.5" /></button>
+                              )}
+                            </div>
                           </td>
                         </tr>
                       );
@@ -1035,6 +1200,7 @@ export default function CompanyDashboardPage() {
                     <button key={v} onClick={() => setPeriod(v)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${period === v ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>{label}</button>
                   ))}
                 </div>
+                <button onClick={exportSalesCsv} className="flex items-center gap-1.5 bg-white border border-gray-200 text-gray-600 hover:border-indigo-300 hover:text-indigo-600 text-sm font-medium px-3 py-1.5 rounded-xl transition-all" title="Exportar CSV"><FileSpreadsheet className="w-4 h-4" /> CSV</button>
                 <button onClick={toggleMoney} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 bg-white border border-gray-200 rounded-xl px-3 py-1.5 transition-all">
                   {hideMoney ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -1445,6 +1611,50 @@ export default function CompanyDashboardPage() {
             <Button onClick={saveNote} disabled={noteSaving} className="gradient-brand shadow-md shadow-indigo-500/20">
               {noteSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar anotação'}
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de edição de agendamento */}
+      <Dialog open={!!bkEdit} onOpenChange={(v) => !v && setBkEdit(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Editar agendamento</DialogTitle></DialogHeader>
+          {bkEdit && (
+            <div className="space-y-3">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Serviço</label>
+                <select value={bkEdit.serviceId} onChange={(e) => setBkEdit({ ...bkEdit, serviceId: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                  {bkEdit.services.length === 0 && <option value="">Sem serviços</option>}
+                  {bkEdit.services.map((s) => <option key={s.id} value={s.id}>{s.name} · {s.duration}min</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Data</label>
+                  <input type="date" value={bkEdit.date} onChange={(e) => setBkEdit({ ...bkEdit, date: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Horário</label>
+                  <input type="time" value={bkEdit.time} onChange={(e) => setBkEdit({ ...bkEdit, time: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+              </div>
+              <div className="flex justify-end">
+                <Button onClick={saveBkEdit} disabled={bkEditSaving} className="gradient-brand">{bkEditSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar'}</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de cancelamento com motivo */}
+      <Dialog open={!!cancelTarget} onOpenChange={(v) => { if (!v) { setCancelTarget(null); setCancelReason(''); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Cancelar agendamento</DialogTitle></DialogHeader>
+          <p className="text-xs text-gray-400 -mt-2">O horário será liberado. Informe o motivo (opcional, entra nos relatórios).</p>
+          <input type="text" value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} placeholder="Ex.: cliente desmarcou, imprevisto…" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => { setCancelTarget(null); setCancelReason(''); }}>Voltar</Button>
+            <Button onClick={confirmCancel} className="bg-red-500 hover:bg-red-600 text-white">Cancelar agendamento</Button>
           </div>
         </DialogContent>
       </Dialog>

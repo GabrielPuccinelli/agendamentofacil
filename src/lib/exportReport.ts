@@ -10,6 +10,19 @@ export type FinancialReport = {
   perMethod: { method: string; value: number }[];
 };
 
+/** Baixa uma tabela genérica como CSV (Excel PT-BR). */
+export function downloadCsv(filename: string, header: string[], rows: string[][]) {
+  const escape = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+  const csv = [header, ...rows].map((r) => r.map(escape).join(';')).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${filename}-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 const brl = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 const brlInt = (n: number) => n.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
 
