@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabaseClient';
-import { Bell, CalendarClock, ArrowLeft, Phone, Clock } from 'lucide-react';
+import { Bell, CalendarClock, ArrowLeft, Phone, Clock, X } from 'lucide-react';
 import { format, isToday, isTomorrow } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -31,7 +31,12 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<Item | null>(null);
   const [lastSeen, setLastSeen] = useState<number>(() => Number(localStorage.getItem('notif_last_seen') || 0));
+  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set(JSON.parse(localStorage.getItem('notif_dismissed') || '[]')));
   const ref = useRef<HTMLDivElement>(null);
+
+  const persistDismissed = (s: Set<string>) => localStorage.setItem('notif_dismissed', JSON.stringify([...s]));
+  const dismiss = (id: string) => setDismissed((prev) => { const n = new Set(prev); n.add(id); persistDismissed(n); return n; });
+  const dismissAll = () => setDismissed((prev) => { const n = new Set(prev); visible.forEach((i) => n.add(i.id)); persistDismissed(n); return n; });
 
   useEffect(() => {
     const load = async () => {
@@ -72,8 +77,9 @@ export default function NotificationBell() {
     return () => document.removeEventListener('mousedown', onClick);
   }, []);
 
-  const pendingCount = items.filter((i) => i.status === 'pending').length;
-  const newSinceSeen = Math.max(items.length - lastSeen, 0);
+  const visible = items.filter((i) => !dismissed.has(i.id));
+  const pendingCount = visible.filter((i) => i.status === 'pending').length;
+  const newSinceSeen = Math.max(visible.length - lastSeen, 0);
   const badge = pendingCount > 0 ? pendingCount : newSinceSeen;
 
   const toggle = () => {
@@ -81,8 +87,8 @@ export default function NotificationBell() {
     setOpen(next);
     setSelected(null);
     if (next) {
-      localStorage.setItem('notif_last_seen', String(items.length));
-      setLastSeen(items.length);
+      localStorage.setItem('notif_last_seen', String(visible.length));
+      setLastSeen(visible.length);
     }
   };
 
@@ -150,39 +156,52 @@ export default function NotificationBell() {
           ) : (
             /* Lista */
             <>
-              <div className="px-4 py-3 border-b border-gray-50">
-                <p className="font-bold text-gray-900 text-sm">Notificações</p>
-                <p className="text-xs text-gray-400">
-                  {pendingCount > 0 ? `${pendingCount} aguardando confirmação` : 'Agendamentos mais recentes'}
-                </p>
+              <div className="flex items-center justify-between px-4 py-3 border-b border-gray-50">
+                <div>
+                  <p className="font-bold text-gray-900 text-sm">Notificações</p>
+                  <p className="text-xs text-gray-400">
+                    {pendingCount > 0 ? `${pendingCount} aguardando confirmação` : 'Agendamentos mais recentes'}
+                  </p>
+                </div>
+                {visible.length > 0 && (
+                  <button onClick={dismissAll} className="text-xs text-gray-400 hover:text-indigo-600 transition-colors">Limpar</button>
+                )}
               </div>
               <div className="max-h-80 overflow-y-auto">
-                {items.length === 0 ? (
+                {visible.length === 0 ? (
                   <div className="px-4 py-8 text-center text-gray-400 text-sm">
                     <CalendarClock className="w-8 h-8 mx-auto mb-2 text-gray-200" />
-                    Nenhum agendamento ainda
+                    Nenhuma notificação
                   </div>
                 ) : (
-                  items.map((it) => (
-                    <button
+                  visible.map((it) => (
+                    <div
                       key={it.id}
-                      onClick={() => setSelected(it)}
-                      className="w-full text-left flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors"
+                      className="group flex items-center gap-3 px-4 py-3 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors"
                     >
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 ${it.status === 'pending' ? 'bg-amber-400' : 'gradient-brand'}`}>
-                        {it.client_name?.charAt(0).toUpperCase() || '?'}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-gray-800 truncate">
-                          {it.client_name}
-                          {it.status === 'pending' && <span className="ml-1.5 text-[10px] text-amber-500 font-bold">PENDENTE</span>}
-                        </p>
-                        <p className="text-xs text-gray-400 truncate">
-                          {dayLabel(new Date(it.start_time))} · {format(new Date(it.start_time), 'HH:mm')}
-                          {it.services?.name && ` · ${it.services.name}`}
-                        </p>
-                      </div>
-                    </button>
+                      <button onClick={() => setSelected(it)} className="flex items-center gap-3 flex-1 min-w-0 text-left">
+                        <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 ${it.status === 'pending' ? 'bg-amber-400' : 'gradient-brand'}`}>
+                          {it.client_name?.charAt(0).toUpperCase() || '?'}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-semibold text-gray-800 truncate">
+                            {it.client_name}
+                            {it.status === 'pending' && <span className="ml-1.5 text-[10px] text-amber-500 font-bold">PENDENTE</span>}
+                          </p>
+                          <p className="text-xs text-gray-400 truncate">
+                            {dayLabel(new Date(it.start_time))} · {format(new Date(it.start_time), 'HH:mm')}
+                            {it.services?.name && ` · ${it.services.name}`}
+                          </p>
+                        </div>
+                      </button>
+                      <button
+                        onClick={() => dismiss(it.id)}
+                        aria-label="Dispensar"
+                        className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-300 hover:text-gray-600 hover:bg-gray-100 transition-all"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
                   ))
                 )}
               </div>

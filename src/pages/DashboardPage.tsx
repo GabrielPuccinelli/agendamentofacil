@@ -250,40 +250,26 @@ export default function DashboardPage() {
           </>
         )}
 
-        {/* My Services — staff only if admin granted can_edit_services */}
-        {!isAdmin && canEditServices && memberId && organizationId && (
+        {/* Meus Serviços — admin (sempre) ou staff com permissão: escolher o que atende */}
+        {(isAdmin || canEditServices) && memberId && organizationId && (
           <>
             <SectionDivider title="Meus Serviços" />
+            {isAdmin && (
+              <div className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 mb-3 flex items-center gap-3">
+                <p className="text-sm text-indigo-700 flex-1">
+                  Marque abaixo os serviços que <strong>você mesmo atende</strong> — eles aparecem no seu link público. Para criar/editar o catálogo, use o Painel da Empresa.
+                </p>
+                <a href="/company/services" className="shrink-0 text-sm font-semibold text-indigo-600 hover:text-indigo-800 whitespace-nowrap">
+                  Catálogo →
+                </a>
+              </div>
+            )}
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
               <ManageServices
                 memberId={memberId}
                 organizationId={undefined}
                 canEditPrice={canEditPrice}
               />
-            </div>
-          </>
-        )}
-
-        {/* Admin hint to manage services */}
-        {isAdmin && (
-          <>
-            <SectionDivider title="Gerenciar Serviços" />
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl gradient-brand flex items-center justify-center shrink-0">
-                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <p className="font-semibold text-gray-900">Serviços da Empresa</p>
-                <p className="text-sm text-gray-400 mt-0.5">Gerencie o catálogo de serviços no Painel da Empresa.</p>
-              </div>
-              <a
-                href="/company/dashboard"
-                className="shrink-0 gradient-brand text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:opacity-90 transition-all shadow-md shadow-indigo-500/20"
-              >
-                Ir para Serviços →
-              </a>
             </div>
           </>
         )}
