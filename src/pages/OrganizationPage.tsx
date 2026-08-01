@@ -19,7 +19,7 @@ type Organization = {
   instagram: string | null;
 };
 type Member = { id: string; name: string; slug: string; avatar_url: string | null };
-type Service = { id: string; name: string; price: number; duration: number; category: string | null };
+type Service = { id: string; name: string; price: number; duration: number; category: string | null; unit_label: string | null };
 type PortfolioItem = { id: string; image_url: string; caption: string | null };
 
 const getInitials = (name: string) =>
@@ -67,7 +67,7 @@ export default function OrganizationPage() {
 
         const [{ data: membersData, error: membersError }, { data: servicesData }] = await Promise.all([
           supabase.from('members').select('id, name, slug, avatar_url').eq('organization_id', orgData.id),
-          supabase.from('services').select('id, name, price, duration, category').eq('organization_id', orgData.id).order('name'),
+          supabase.from('services').select('id, name, price, duration, category, unit_label').eq('organization_id', orgData.id).order('name'),
         ]);
 
         if (membersError) throw new Error('Não foi possível carregar os profissionais desta empresa.');
@@ -263,11 +263,11 @@ export default function OrganizationPage() {
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-gray-800 text-sm">{s.name}</p>
                     <p className="text-xs text-gray-400 mt-0.5">
-                      {s.duration} min{s.category ? ` · ${s.category}` : ''}
+                      {s.duration > 0 ? `${s.duration} min` : ''}{s.duration > 0 && s.category ? ' · ' : ''}{s.category || ''}
                     </p>
                   </div>
                   <p className="font-bold text-indigo-600 shrink-0">
-                    R$ {Number(s.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    R$ {Number(s.price).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}{s.unit_label ? ` / ${s.unit_label}` : ''}
                   </p>
                 </div>
               ))}

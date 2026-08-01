@@ -123,7 +123,10 @@ export default function PublicPage() {
 
         if (servicesError) throw new Error(`Erro ao buscar serviços: ${servicesError.message}`);
 
-        const professionalServices = servicesData.map((item: any) => item.services).filter(Boolean) as Service[];
+        // Só serviços agendáveis: com duração e que não sejam produtos
+        const professionalServices = servicesData
+          .map((item: any) => item.services)
+          .filter((s: any) => s && s.duration > 0 && !s.is_product) as Service[];
         setServices(professionalServices);
 
         const { data: availabilityData, error: availabilityError } = await supabase
