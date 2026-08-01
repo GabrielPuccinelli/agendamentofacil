@@ -25,6 +25,8 @@ type Booking = {
   status: string;
   paid: boolean;
   payment_method: string | null;
+  amount: number | null;
+  quantity: number;
   services: { name: string; price: number; category?: string } | null;
 };
 
@@ -165,7 +167,7 @@ export default function CompanyDashboardPage() {
 
       const { data: rawBookings } = await supabase
         .from('bookings')
-        .select('id, start_time, end_time, client_name, client_phone, member_id, status, paid, payment_method, services(name, price, category)')
+        .select('id, start_time, end_time, client_name, client_phone, member_id, status, paid, payment_method, amount, quantity, services(name, price, category)')
         .in('member_id', memberIds)
         .order('start_time', { ascending: false });
 
@@ -191,7 +193,7 @@ export default function CompanyDashboardPage() {
       }
 
       bks.forEach((b: any) => {
-        const price = b.services?.price || 0;
+        const price = b.amount ?? (b.services?.price || 0);
         const isCancelled = b.status === 'cancelled';
         const monthKey = b.start_time.slice(0, 7);
 
@@ -346,7 +348,7 @@ export default function CompanyDashboardPage() {
   let cancelledTotal = 0, prevMonthBookings = 0, prevMonthRevenue = 0, monthReceived = 0;
 
   bookings.forEach((b: any) => {
-    const price = b.services?.price || 0;
+    const price = b.amount ?? (b.services?.price || 0);
     const isCancelled = b.status === 'cancelled';
     if (isCancelled) { cancelledTotal++; return; }
     totalBookings++; totalRevenue += price;
@@ -363,7 +365,7 @@ export default function CompanyDashboardPage() {
   bookings.forEach((b: any) => {
     if (b.status === 'cancelled' || !b.paid || b.start_time < startOfMonth) return;
     const m = b.payment_method || 'Outro';
-    methodTotals[m] = (methodTotals[m] || 0) + (b.services?.price || 0);
+    methodTotals[m] = (methodTotals[m] || 0) + (b.amount ?? (b.services?.price || 0));
   });
   const monthToReceive = Math.max(monthRevenue - monthReceived, 0);
 
@@ -388,7 +390,7 @@ export default function CompanyDashboardPage() {
   let repCount = 0, repRevenue = 0, repReceived = 0;
   bookings.forEach((b: any) => {
     if (b.status === 'cancelled' || new Date(b.start_time) < periodStart) return;
-    const price = b.services?.price || 0;
+    const price = b.amount ?? (b.services?.price || 0);
     repCount++; repRevenue += price;
     const name = membersMap[b.member_id] || '—';
     const row = reportMemberMap[b.member_id] || (reportMemberMap[b.member_id] = { name, count: 0, revenue: 0, received: 0, commission: 0 });
@@ -443,7 +445,7 @@ export default function CompanyDashboardPage() {
     }
     const c = clientMap[key];
     c.visits++;
-    c.revenue += b.services?.price || 0;
+    c.revenue += b.amount ?? (b.services?.price || 0);
     if (b.start_time > c.lastVisit) { c.lastVisit = b.start_time; c.name = b.client_name; }
     c.memberCount[b.member_id] = (c.memberCount[b.member_id] || 0) + 1;
   });
@@ -844,7 +846,7 @@ export default function CompanyDashboardPage() {
                             <span className="text-xs text-emerald-600 font-semibold">✓ Pago{b.payment_method ? ` · ${b.payment_method}` : ''}</span>
                           ) : (
                             <div className="flex items-center gap-1 justify-end">
-                              <span className="text-xs text-gray-400">R$ {(b.services?.price || 0).toFixed(0)}</span>
+                              <span className="text-xs text-gray-400">R$ {(b.amount ?? (b.services?.price || 0)).toFixed(0)}</span>
                               <select
                                 defaultValue=""
                                 onChange={(e) => { if (e.target.value) markBookingPaid(b.id, e.target.value); }}
@@ -926,7 +928,7 @@ export default function CompanyDashboardPage() {
                             {b.status === 'cancelled' ? (
                               <span className="text-xs text-gray-300">—</span>
                             ) : b.paid ? (
-                              <span className="text-xs text-emerald-600 font-semibold">{mask(`R$ ${(b.services?.price || 0).toFixed(0)}`)} · {b.payment_method}</span>
+                              <span className="text-xs text-emerald-600 font-semibold">{mask(`R$ ${(b.amount ?? (b.services?.price || 0)).toFixed(0)}`)} · {b.payment_method}</span>
                             ) : (
                               <div className="flex items-center gap-1 justify-end">
                                 <select defaultValue="" onChange={(e) => { if (e.target.value) markBookingPaid(b.id, e.target.value); }} className="text-[11px] border border-gray-200 rounded-md px-1 py-0.5 text-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-400">

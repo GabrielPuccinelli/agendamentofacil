@@ -18,6 +18,7 @@ type Service = {
   is_combo?: boolean;
   unit_label?: string | null;
   is_product?: boolean;
+  stock?: number | null;
 };
 
 const CATEGORY_SUGGESTIONS = [
@@ -87,6 +88,7 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
   const [newPrice, setNewPrice] = useState(0);
   const [newType, setNewType] = useState<'service' | 'session' | 'product'>('service');
   const [newUnit, setNewUnit] = useState('');
+  const [newStock, setNewStock] = useState('');
 
   // Inline edit state
   const [editing, setEditing] = useState<EditingState | null>(null);
@@ -154,6 +156,7 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
           organization_id: organizationId,
           is_product: newType === 'product',
           unit_label: newType === 'session' ? (newUnit.trim() || 'sessão') : (newType === 'product' ? (newUnit.trim() || 'unidade') : null),
+          stock: newType === 'product' && newStock !== '' ? parseInt(newStock) : null,
         })
         .select()
         .single();
@@ -165,7 +168,7 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
         queryClient.invalidateQueries(['services', organizationId]);
         setNewName(''); setNewDescription(''); setNewCategory(''); setNewNotes('');
         setNewMaterials(''); setNewCommission(''); setNewDuration(30); setNewPrice(0);
-        setNewType('service'); setNewUnit('');
+        setNewType('service'); setNewUnit(''); setNewStock('');
         setShowCreate(false);
         toast.success(newType === 'product' ? 'Produto criado!' : 'Serviço criado!');
       },
@@ -474,6 +477,12 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
                 <input type="text" placeholder={newType === 'product' ? 'unidade' : 'sessão, aula, hora…'} value={newUnit} onChange={(e) => setNewUnit(e.target.value)} className={inputCls} />
               </div>
             )}
+            {newType === 'product' && (
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Estoque <span className="text-gray-400 font-normal">(opcional)</span></label>
+                <input type="number" min={0} placeholder="Ex: 20" value={newStock} onChange={(e) => setNewStock(e.target.value)} className={inputCls} />
+              </div>
+            )}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">Preço (R$) *</label>
               <input type="number" min={0} step="0.01" placeholder="50.00" value={newPrice} onChange={(e) => setNewPrice(parseFloat(e.target.value) || 0)} className={inputCls} />
@@ -584,6 +593,11 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
                         <span className="text-sm font-bold text-emerald-600">
                           R$ {service.price.toFixed(2)}{service.unit_label ? ` / ${service.unit_label}` : ''}
                         </span>
+                        {service.is_product && service.stock != null && (
+                          <span className={`text-xs font-medium ${service.stock > 0 ? 'text-gray-500' : 'text-red-500'}`}>
+                            {service.stock > 0 ? `${service.stock} em estoque` : 'Sem estoque'}
+                          </span>
+                        )}
                         {service.commission_percent != null && (
                           <span className="text-xs text-amber-600 font-medium">{service.commission_percent}% comissão</span>
                         )}
