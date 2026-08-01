@@ -40,6 +40,7 @@ function App() {
           <Route path="/company/team" element={<CompanyDashboardPage />} />
           <Route path="/company/clients" element={<CompanyDashboardPage />} />
           <Route path="/company/bookings" element={<CompanyDashboardPage />} />
+          <Route path="/company/sales" element={<CompanyDashboardPage />} />
           <Route path="/company/profile" element={<CompanyProfilePage />} />
           <Route path="/company/invite" element={<InviteCreatePage />} />
           <Route path="/invite/:token" element={<InviteAcceptPage />} />

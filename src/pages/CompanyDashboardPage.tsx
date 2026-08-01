@@ -12,6 +12,7 @@ const METHOD_COLORS: Record<string, string> = { Pix: '#6366f1', Dinheiro: '#10b9
 import { toast } from 'sonner';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
+import { ConfirmButton } from '../components/ConfirmButton';
 import { StickyNote, Loader2, UserPlus, FileText, FileSpreadsheet, Eye, EyeOff } from 'lucide-react';
 import { exportReportCsv, exportReportPdf, type FinancialReport, type ReportRow } from '../lib/exportReport';
 
@@ -22,12 +23,13 @@ type Booking = {
   client_name: string;
   client_phone: string | null;
   member_id: string;
+  service_id: string | null;
   status: string;
   paid: boolean;
   payment_method: string | null;
   amount: number | null;
   quantity: number;
-  services: { name: string; price: number; category?: string } | null;
+  services: { name: string; price: number; category?: string; is_product?: boolean } | null;
 };
 
 const PAYMENT_METHODS = ['Pix', 'Dinheiro', 'Débito', 'Crédito'];
@@ -111,8 +113,10 @@ export default function CompanyDashboardPage() {
     ? 'clients'
     : location.pathname.endsWith('/bookings')
     ? 'bookings'
+    : location.pathname.endsWith('/sales')
+    ? 'sales'
     : 'overview';
-  const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'services' | 'clients' | 'bookings'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'services' | 'clients' | 'bookings' | 'sales'>(initialTab);
   const [clientSearch, setClientSearch] = useState('');
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'all'>('month');
   const [hideMoney, setHideMoney] = useState(() => localStorage.getItem('hide_money') === '1');
@@ -124,6 +128,8 @@ export default function CompanyDashboardPage() {
   const [notedPhones, setNotedPhones] = useState<Set<string>>(new Set());
   // Cadastro de clientes (tabela clients)
   const [registeredClients, setRegisteredClients] = useState<{ name: string; phone: string; email: string | null; notes: string | null }[]>([]);
+  const [saleEdit, setSaleEdit] = useState<{ id: string; serviceId: string | null; name: string; unit: number; qty: number; oldQty: number; method: string } | null>(null);
+  const [saleSaving, setSaleSaving] = useState(false);
   const [detailClient, setDetailClient] = useState<ClientStat | null>(null);
   const [detailEdit, setDetailEdit] = useState({ name: '', phone: '', email: '' });
   const [detailSaving, setDetailSaving] = useState(false);
@@ -167,7 +173,7 @@ export default function CompanyDashboardPage() {
 
       const { data: rawBookings } = await supabase
         .from('bookings')
-        .select('id, start_time, end_time, client_name, client_phone, member_id, status, paid, payment_method, amount, quantity, services(name, price, category)')
+        .select('id, start_time, end_time, client_name, client_phone, member_id, service_id, status, paid, payment_method, amount, quantity, services(name, price, category, is_product)')
         .in('member_id', memberIds)
         .order('start_time', { ascending: false });
 
@@ -243,6 +249,36 @@ export default function CompanyDashboardPage() {
     if (error) { toast.error('Não foi possível registrar o pagamento.'); return; }
     setBookings((prev) => prev.map((b) => b.id === id ? { ...b, paid: true, payment_method: method, status: 'completed' } : b));
     toast.success(`Pagamento registrado (${method}).`);
+  };
+
+  const openSaleEdit = (b: any) => {
+    const unit = b.quantity > 0 ? (b.amount ?? (b.services?.price || 0)) / b.quantity : (b.services?.price || 0);
+    setSaleEdit({ id: b.id, serviceId: b.service_id, name: b.services?.name || 'Produto', unit, qty: b.quantity || 1, oldQty: b.quantity || 1, method: b.payment_method || 'Dinheiro' });
+  };
+
+  const saveSaleEdit = async () => {
+    if (!saleEdit) return;
+    setSaleSaving(true);
+    const newQty = Math.max(1, saleEdit.qty);
+    const { error } = await supabase.from('bookings')
+      .update({ quantity: newQty, amount: saleEdit.unit * newQty, payment_method: saleEdit.method, paid: true })
+      .eq('id', saleEdit.id);
+    if (error) { setSaleSaving(false); toast.error('Não foi possível salvar.'); return; }
+    // Ajusta o estoque pela diferença (positivo reduz, negativo repõe)
+    const delta = newQty - saleEdit.oldQty;
+    if (delta !== 0 && saleEdit.serviceId) await supabase.rpc('decrement_stock', { p_service_id: saleEdit.serviceId, p_qty: delta });
+    setBookings((prev) => prev.map((b) => b.id === saleEdit.id ? { ...b, quantity: newQty, amount: saleEdit.unit * newQty, payment_method: saleEdit.method, paid: true } : b));
+    setSaleSaving(false); setSaleEdit(null);
+    toast.success('Venda atualizada!');
+  };
+
+  const deleteSale = async (b: any) => {
+    const { error } = await supabase.from('bookings').delete().eq('id', b.id);
+    if (error) { toast.error('Não foi possível excluir a venda.'); return; }
+    if (b.service_id) await supabase.rpc('decrement_stock', { p_service_id: b.service_id, p_qty: -(b.quantity || 1) });
+    setBookings((prev) => prev.filter((x) => x.id !== b.id));
+    setSaleEdit(null);
+    toast.success('Venda excluída e estoque reposto.');
   };
 
   const setBookingStatus = async (id: string, status: string) => {
@@ -410,10 +446,28 @@ export default function CompanyDashboardPage() {
     perMethod: PAYMENT_METHODS.map((m) => ({ method: m, value: reportMethod[m] || 0 })),
   };
 
-  // Lista de agendamentos do período (todos os status), mais recentes primeiro
+  // Atendimentos do período (exclui vendas de produto), mais recentes primeiro
   const periodBookings = bookings
-    .filter((b) => new Date(b.start_time) >= periodStart)
+    .filter((b) => new Date(b.start_time) >= periodStart && !b.services?.is_product)
     .sort((a, b) => b.start_time.localeCompare(a.start_time));
+
+  // ── Vendas de produto do período ────────────────────────────────────────────
+  const productSales = bookings
+    .filter((b) => b.services?.is_product && b.status !== 'cancelled' && new Date(b.start_time) >= periodStart)
+    .sort((a, b) => b.start_time.localeCompare(a.start_time));
+  const salesTotal = productSales.reduce((a, b) => a + (b.amount ?? (b.services?.price || 0)), 0);
+  const salesUnits = productSales.reduce((a, b) => a + (b.quantity || 1), 0);
+  const salesByProduct: Record<string, { name: string; units: number; total: number }> = {};
+  const salesByMethod: Record<string, number> = {};
+  PAYMENT_METHODS.forEach((m) => { salesByMethod[m] = 0; });
+  productSales.forEach((b) => {
+    const name = b.services?.name || 'Produto';
+    const total = b.amount ?? (b.services?.price || 0);
+    const row = salesByProduct[name] || (salesByProduct[name] = { name, units: 0, total: 0 });
+    row.units += b.quantity || 1; row.total += total;
+    if (b.paid) { const m = b.payment_method || 'Outro'; salesByMethod[m] = (salesByMethod[m] || 0) + total; }
+  });
+  const topProducts = Object.values(salesByProduct).sort((a, b) => b.total - a.total);
 
   const avgTicket = totalBookings > 0 ? totalRevenue / totalBookings : 0;
   const cancellationRate = bookings.length > 0 ? ((cancelledTotal / bookings.length) * 100).toFixed(0) : '0';
@@ -544,7 +598,7 @@ export default function CompanyDashboardPage() {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
-          {(['overview', 'bookings', 'clients', 'team', 'services'] as const).map((tab) => (
+          {(['overview', 'bookings', 'sales', 'clients', 'team', 'services'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -554,7 +608,7 @@ export default function CompanyDashboardPage() {
                   : 'bg-white text-gray-500 border border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
               }`}
             >
-              {tab === 'overview' ? '📊 Visão Geral' : tab === 'bookings' ? '📋 Agendamentos' : tab === 'clients' ? '🤝 Clientes' : tab === 'team' ? '👥 Equipe' : '✂️ Serviços'}
+              {tab === 'overview' ? '📊 Visão Geral' : tab === 'bookings' ? '📋 Agendamentos' : tab === 'sales' ? '🛍️ Produtos' : tab === 'clients' ? '🤝 Clientes' : tab === 'team' ? '👥 Equipe' : '✂️ Serviços'}
             </button>
           ))}
         </div>
@@ -949,6 +1003,95 @@ export default function CompanyDashboardPage() {
           </div>
         )}
 
+        {/* ── Sales Tab (vendas de produtos) ───────────────────────────────── */}
+        {activeTab === 'sales' && (
+          <>
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Vendas de produtos</h2>
+                <p className="text-xs text-gray-400">{periodLabel} · separado dos atendimentos</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="flex bg-gray-100 rounded-xl p-1">
+                  {([['today', 'Hoje'], ['week', 'Semana'], ['month', 'Mês'], ['all', 'Tudo']] as const).map(([v, label]) => (
+                    <button key={v} onClick={() => setPeriod(v)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${period === v ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>{label}</button>
+                  ))}
+                </div>
+                <button onClick={toggleMoney} className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-indigo-600 bg-white border border-gray-200 rounded-xl px-3 py-1.5 transition-all">
+                  {hideMoney ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Resumo */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p className="text-lg font-extrabold text-indigo-700">{mask(`R$ ${salesTotal.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`)}</p><p className="text-xs text-gray-400">total vendido</p></div>
+              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p className="text-lg font-extrabold text-gray-800">{salesUnits}</p><p className="text-xs text-gray-400">unidades</p></div>
+              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p className="text-lg font-extrabold text-gray-800">{productSales.length}</p><p className="text-xs text-gray-400">vendas</p></div>
+              <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm"><p className="text-sm font-extrabold text-emerald-600">{mask(`R$ ${(salesUnits > 0 ? salesTotal / salesUnits : 0).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`)}</p><p className="text-xs text-gray-400">média/unidade</p></div>
+            </div>
+
+            <div className="grid lg:grid-cols-3 gap-6">
+              {/* Lista de vendas */}
+              <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h3 className="font-bold text-gray-900 mb-4">Histórico de vendas</h3>
+                {productSales.length === 0 ? (
+                  <p className="text-sm text-gray-400 text-center py-8">Nenhuma venda neste período. Use "Vender produto" no dashboard.</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="text-left text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                          <th className="pb-2 pr-4 font-semibold">Data</th>
+                          <th className="pb-2 pr-4 font-semibold">Produto</th>
+                          <th className="pb-2 pr-4 font-semibold text-center">Qtd</th>
+                          <th className="pb-2 pr-4 font-semibold hidden sm:table-cell">Vendedor</th>
+                          <th className="pb-2 font-semibold text-right">Total</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {productSales.map((b: any) => (
+                          <tr key={b.id} onClick={() => openSaleEdit(b)} className="border-b border-gray-50 last:border-0 cursor-pointer hover:bg-gray-50 transition-colors">
+                            <td className="py-2 pr-4 text-gray-500 whitespace-nowrap">{new Date(b.start_time).toLocaleDateString('pt-BR')}</td>
+                            <td className="py-2 pr-4 font-medium text-gray-800">{b.services?.name}<span className="text-xs text-gray-400 block sm:hidden">{b.payment_method}</span></td>
+                            <td className="py-2 pr-4 text-center text-gray-600">{b.quantity}</td>
+                            <td className="py-2 pr-4 text-gray-500 hidden sm:table-cell">{membersMap[b.member_id] || '—'}</td>
+                            <td className="py-2 text-right font-semibold text-emerald-600">{mask(`R$ ${(b.amount ?? 0).toFixed(0)}`)}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    <p className="text-[11px] text-gray-300 mt-3">Clique numa venda para editar ou excluir.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Top produtos + estoque */}
+              <div className="space-y-6">
+                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                  <h3 className="font-bold text-gray-900 mb-4">Mais vendidos</h3>
+                  {topProducts.length === 0 ? (
+                    <p className="text-sm text-gray-400">Sem vendas ainda.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {topProducts.slice(0, 6).map((p, i) => (
+                        <div key={p.name} className="flex items-center gap-3">
+                          <span className={`w-6 h-6 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 ${i === 0 ? 'gradient-brand' : 'bg-gray-300'}`}>{i + 1}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-800 truncate">{p.name}</p>
+                            <p className="text-xs text-gray-400">{p.units} un.</p>
+                          </div>
+                          <span className="text-sm font-bold text-emerald-600">{mask(`R$ ${p.total.toFixed(0)}`)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
         {/* ── Clients Tab ──────────────────────────────────────────────────── */}
         {activeTab === 'clients' && (
           <>
@@ -1238,6 +1381,43 @@ export default function CompanyDashboardPage() {
               {noteSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar anotação'}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo de edição de venda */}
+      <Dialog open={!!saleEdit} onOpenChange={(v) => !v && setSaleEdit(null)}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Editar venda · {saleEdit?.name}</DialogTitle>
+          </DialogHeader>
+          {saleEdit && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Quantidade</label>
+                  <input type="number" min={1} value={saleEdit.qty} onChange={(e) => setSaleEdit({ ...saleEdit, qty: Math.max(1, parseInt(e.target.value) || 1) })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Pagamento</label>
+                  <select value={saleEdit.method} onChange={(e) => setSaleEdit({ ...saleEdit, method: e.target.value })} className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    {PAYMENT_METHODS.map((m) => <option key={m}>{m}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="flex items-center justify-between bg-indigo-50 rounded-xl px-4 py-3">
+                <span className="text-sm text-indigo-700 font-medium">Total</span>
+                <span className="text-lg font-extrabold text-indigo-700">R$ {(saleEdit.unit * saleEdit.qty).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+              </div>
+              <div className="flex gap-2">
+                <ConfirmButton onConfirm={() => deleteSale(productSales.find((b: any) => b.id === saleEdit.id))} title="Excluir venda?" description="A venda será removida e o estoque reposto." confirmText="Excluir">
+                  <Button variant="outline" className="flex-1 text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600">Excluir</Button>
+                </ConfirmButton>
+                <Button onClick={saveSaleEdit} disabled={saleSaving} className="flex-1 gradient-brand">
+                  {saleSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar'}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
