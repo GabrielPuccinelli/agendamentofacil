@@ -21,8 +21,11 @@ type Booking = {
   member_id: string;
   status: string;
   paid: boolean;
+  payment_method: string | null;
   services: { name: string; price: number; category?: string } | null;
 };
+
+const PAYMENT_METHODS = ['Pix', 'Dinheiro', 'Débito', 'Crédito'];
 
 type ClientStat = {
   name: string;
@@ -150,7 +153,7 @@ export default function CompanyDashboardPage() {
 
       const { data: rawBookings } = await supabase
         .from('bookings')
-        .select('id, start_time, end_time, client_name, client_phone, member_id, status, paid, services(name, price, category)')
+        .select('id, start_time, end_time, client_name, client_phone, member_id, status, paid, payment_method, services(name, price, category)')
         .in('member_id', memberIds)
         .order('start_time', { ascending: false });
 
@@ -217,6 +220,16 @@ export default function CompanyDashboardPage() {
   }, [navigate]);
 
   const handleLogout = async () => { await supabase.auth.signOut(); };
+
+  const markBookingPaid = async (id: string, method: string) => {
+    const { error } = await supabase
+      .from('bookings')
+      .update({ paid: true, payment_method: method, paid_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) { toast.error('Não foi possível registrar o pagamento.'); return; }
+    setBookings((prev) => prev.map((b) => b.id === id ? { ...b, paid: true, payment_method: method } : b));
+    toast.success(`Pagamento registrado (${method}).`);
+  };
 
   // Carrega o cadastro de clientes (nome, telefone, e-mail, notas)
   const loadClients = () => {
@@ -299,6 +312,16 @@ export default function CompanyDashboardPage() {
     }
     if (b.start_time >= prevMonthStart && b.start_time <= prevMonthEnd) { prevMonthBookings++; prevMonthRevenue += price; }
   });
+
+  // Quebra por forma de pagamento (mês) + a receber
+  const methodTotals: Record<string, number> = {};
+  PAYMENT_METHODS.forEach((m) => { methodTotals[m] = 0; });
+  bookings.forEach((b: any) => {
+    if (b.status === 'cancelled' || !b.paid || b.start_time < startOfMonth) return;
+    const m = b.payment_method || 'Outro';
+    methodTotals[m] = (methodTotals[m] || 0) + (b.services?.price || 0);
+  });
+  const monthToReceive = Math.max(monthRevenue - monthReceived, 0);
 
   const avgTicket = totalBookings > 0 ? totalRevenue / totalBookings : 0;
   const cancellationRate = bookings.length > 0 ? ((cancelledTotal / bookings.length) * 100).toFixed(0) : '0';
@@ -496,6 +519,34 @@ export default function CompanyDashboardPage() {
               />
             </div>
 
+            {/* Controle financeiro do mês */}
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+              <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+                <div>
+                  <h2 className="text-lg font-bold text-gray-900">Controle financeiro</h2>
+                  <p className="text-xs text-gray-400">Recebido por forma de pagamento · {now.toLocaleDateString('pt-BR', { month: 'long' })}</p>
+                </div>
+                <div className="flex gap-4">
+                  <div className="text-right">
+                    <p className="text-lg font-extrabold text-emerald-600">R$ {monthReceived.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    <p className="text-[11px] text-gray-400">recebido</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-lg font-extrabold text-amber-500">R$ {monthToReceive.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                    <p className="text-[11px] text-gray-400">a receber</p>
+                  </div>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {PAYMENT_METHODS.map((m) => (
+                  <div key={m} className="bg-gray-50 rounded-xl p-3 text-center">
+                    <p className="text-sm font-extrabold text-gray-800">R$ {(methodTotals[m] || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">{m}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
               {/* Monthly trend */}
               <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -601,10 +652,21 @@ export default function CompanyDashboardPage() {
                           </p>
                           {b.status === 'cancelled' ? (
                             <span className="text-xs text-red-400 font-medium">Cancelado</span>
+                          ) : b.paid ? (
+                            <span className="text-xs text-emerald-600 font-semibold">✓ Pago{b.payment_method ? ` · ${b.payment_method}` : ''}</span>
                           ) : (
-                            <p className="text-xs text-emerald-600 font-medium">
-                              R$ {(b.services?.price || 0).toFixed(2)}
-                            </p>
+                            <div className="flex items-center gap-1 justify-end">
+                              <span className="text-xs text-gray-400">R$ {(b.services?.price || 0).toFixed(0)}</span>
+                              <select
+                                defaultValue=""
+                                onChange={(e) => { if (e.target.value) markBookingPaid(b.id, e.target.value); }}
+                                className="text-[11px] border border-gray-200 rounded-md px-1 py-0.5 text-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-400"
+                                title="Marcar como pago"
+                              >
+                                <option value="">Pagar…</option>
+                                {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+                              </select>
+                            </div>
                           )}
                         </div>
                       </div>

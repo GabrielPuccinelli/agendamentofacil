@@ -33,11 +33,13 @@ export default function DayOverview({ memberId }: Props) {
   const [loading, setLoading] = useState(true);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [occupancy, setOccupancy] = useState<number | null>(null);
+  const [monthFin, setMonthFin] = useState<{ received: number; toReceive: number; byMethod: Record<string, number> }>({ received: 0, toReceive: 0, byMethod: {} });
 
   useEffect(() => {
     const load = async () => {
       const now = new Date();
-      const [{ data: bookingData }, { data: availabilityData }] = await Promise.all([
+      const startMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const [{ data: bookingData }, { data: availabilityData }, { data: monthData }] = await Promise.all([
         supabase
           .from('bookings')
           .select('id, start_time, end_time, client_name, client_phone, status, paid, payment_method, services(name, price)')
@@ -51,7 +53,24 @@ export default function DayOverview({ memberId }: Props) {
           .select('day_of_week, start_time, end_time')
           .eq('member_id', memberId)
           .eq('day_of_week', now.getDay()),
+        supabase
+          .from('bookings')
+          .select('status, paid, payment_method, services(price)')
+          .eq('member_id', memberId)
+          .neq('status', 'cancelled')
+          .gte('start_time', startMonth.toISOString())
+          .lte('start_time', endOfDay(addDays(now, 60)).toISOString()),
       ]);
+
+      // Resumo financeiro do mês
+      let received = 0, toReceive = 0;
+      const byMethod: Record<string, number> = {};
+      (monthData || []).forEach((b: any) => {
+        const price = b.services?.price || 0;
+        if (b.paid) { received += price; const m = b.payment_method || 'Outro'; byMethod[m] = (byMethod[m] || 0) + price; }
+        else toReceive += price;
+      });
+      setMonthFin({ received, toReceive, byMethod });
 
       const list = (bookingData || []) as unknown as Booking[];
       setBookings(list);
@@ -182,6 +201,36 @@ export default function DayOverview({ memberId }: Props) {
           accent="bg-amber-50 text-amber-600"
         />
       </div>
+
+      {/* Resumo financeiro do mês */}
+      {(monthFin.received > 0 || monthFin.toReceive > 0) && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+            <div>
+              <h2 className="text-lg font-bold text-gray-900">Seu financeiro do mês</h2>
+              <p className="text-xs text-gray-400">O que você recebeu e o que tem a receber</p>
+            </div>
+            <div className="flex gap-4">
+              <div className="text-right">
+                <p className="text-lg font-extrabold text-emerald-600">R$ {monthFin.received.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                <p className="text-[11px] text-gray-400">recebido</p>
+              </div>
+              <div className="text-right">
+                <p className="text-lg font-extrabold text-amber-500">R$ {monthFin.toReceive.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                <p className="text-[11px] text-gray-400">a receber</p>
+              </div>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {['Pix', 'Dinheiro', 'Débito', 'Crédito'].map((m) => (
+              <div key={m} className="bg-gray-50 rounded-xl p-3 text-center">
+                <p className="text-sm font-extrabold text-gray-800">R$ {(monthFin.byMethod[m] || 0).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}</p>
+                <p className="text-xs text-gray-400 mt-0.5">{m}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid lg:grid-cols-2 gap-6">
         {/* Agenda do dia */}
