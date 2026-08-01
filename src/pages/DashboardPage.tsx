@@ -10,9 +10,10 @@ import ManageWaitlist from '../components/ManageWaitlist';
 import DayOverview from '../components/DayOverview';
 import GettingStarted from '../components/GettingStarted';
 import NewBookingDialog from '../components/NewBookingDialog';
+import SellProductDialog from '../components/SellProductDialog';
 import AppShell from '../components/AppShell';
 import { AppLoading } from '../components/LoadingScreen';
-import { Plus } from 'lucide-react';
+import { Plus, ShoppingBag } from 'lucide-react';
 import type { UserProfile, MemberLink } from '../components/Sidebar';
 
 const SectionDivider = ({ title }: { title: string }) => (
@@ -30,6 +31,7 @@ export default function DashboardPage() {
   const [memberId, setMemberId] = useState<string | null>(null);
   const [memberSlug, setMemberSlug] = useState<string | null>(null);
   const [newBookingOpen, setNewBookingOpen] = useState(false);
+  const [sellOpen, setSellOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isAdmin, setIsAdmin] = useState(false);
   const [canEditProfile, setCanEditProfile] = useState(false);
@@ -166,12 +168,20 @@ export default function DashboardPage() {
               </p>
             </div>
             {memberId && organizationId && (
-              <button
-                onClick={() => setNewBookingOpen(true)}
-                className="flex items-center gap-1.5 bg-white text-indigo-700 text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md hover:bg-indigo-50 transition-all"
-              >
-                <Plus className="w-4 h-4" /> Novo agendamento
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setSellOpen(true)}
+                  className="flex items-center gap-1.5 bg-white/15 border border-white/25 text-white text-sm font-semibold px-4 py-2.5 rounded-xl hover:bg-white/25 transition-all"
+                >
+                  <ShoppingBag className="w-4 h-4" /> Vender produto
+                </button>
+                <button
+                  onClick={() => setNewBookingOpen(true)}
+                  className="flex items-center gap-1.5 bg-white text-indigo-700 text-sm font-semibold px-4 py-2.5 rounded-xl shadow-md hover:bg-indigo-50 transition-all"
+                >
+                  <Plus className="w-4 h-4" /> Novo agendamento
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -202,6 +212,19 @@ export default function DashboardPage() {
           <NewBookingDialog
             open={newBookingOpen}
             onOpenChange={setNewBookingOpen}
+            defaultMemberId={memberId}
+            organizationId={organizationId}
+            isAdmin={isAdmin}
+            members={membersList.map((m) => ({ id: m.id, name: m.name }))}
+            onCreated={() => setRefreshKey((k) => k + 1)}
+          />
+        )}
+
+        {/* Dialog de venda de produto */}
+        {memberId && organizationId && (
+          <SellProductDialog
+            open={sellOpen}
+            onOpenChange={setSellOpen}
             defaultMemberId={memberId}
             organizationId={organizationId}
             isAdmin={isAdmin}

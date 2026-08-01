@@ -58,7 +58,7 @@ export default function DayOverview({ memberId }: Props) {
           .eq('day_of_week', now.getDay()),
         supabase
           .from('bookings')
-          .select('status, paid, payment_method, services(price)')
+          .select('status, paid, payment_method, amount, services(price)')
           .eq('member_id', memberId)
           .neq('status', 'cancelled')
           .gte('start_time', startMonth.toISOString())
@@ -69,7 +69,7 @@ export default function DayOverview({ memberId }: Props) {
       let received = 0, toReceive = 0;
       const byMethod: Record<string, number> = {};
       (monthData || []).forEach((b: any) => {
-        const price = b.services?.price || 0;
+        const price = b.amount ?? (b.services?.price || 0);
         if (b.paid) { received += price; const m = b.payment_method || 'Outro'; byMethod[m] = (byMethod[m] || 0) + price; }
         else toReceive += price;
       });
