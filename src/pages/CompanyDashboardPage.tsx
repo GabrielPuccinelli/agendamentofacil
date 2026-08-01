@@ -105,8 +105,10 @@ export default function CompanyDashboardPage() {
     ? 'team'
     : location.pathname.endsWith('/clients')
     ? 'clients'
+    : location.pathname.endsWith('/bookings')
+    ? 'bookings'
     : 'overview';
-  const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'services' | 'clients'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'services' | 'clients' | 'bookings'>(initialTab);
   const [clientSearch, setClientSearch] = useState('');
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'all'>('month');
   const [hideMoney, setHideMoney] = useState(() => localStorage.getItem('hide_money') === '1');
@@ -119,6 +121,8 @@ export default function CompanyDashboardPage() {
   // Cadastro de clientes (tabela clients)
   const [registeredClients, setRegisteredClients] = useState<{ name: string; phone: string; email: string | null; notes: string | null }[]>([]);
   const [detailClient, setDetailClient] = useState<ClientStat | null>(null);
+  const [detailEdit, setDetailEdit] = useState({ name: '', phone: '', email: '' });
+  const [detailSaving, setDetailSaving] = useState(false);
   const [newClientOpen, setNewClientOpen] = useState(false);
   const [ncName, setNcName] = useState('');
   const [ncPhone, setNcPhone] = useState('');
@@ -230,11 +234,20 @@ export default function CompanyDashboardPage() {
   const markBookingPaid = async (id: string, method: string) => {
     const { error } = await supabase
       .from('bookings')
-      .update({ paid: true, payment_method: method, paid_at: new Date().toISOString() })
+      .update({ paid: true, payment_method: method, paid_at: new Date().toISOString(), status: 'completed' })
       .eq('id', id);
     if (error) { toast.error('Não foi possível registrar o pagamento.'); return; }
-    setBookings((prev) => prev.map((b) => b.id === id ? { ...b, paid: true, payment_method: method } : b));
+    setBookings((prev) => prev.map((b) => b.id === id ? { ...b, paid: true, payment_method: method, status: 'completed' } : b));
     toast.success(`Pagamento registrado (${method}).`);
+  };
+
+  const setBookingStatus = async (id: string, status: string) => {
+    const patch: any = { status };
+    if (status === 'cancelled') { patch.paid = false; patch.payment_method = null; patch.paid_at = null; }
+    const { error } = await supabase.from('bookings').update(patch).eq('id', id);
+    if (error) { toast.error('Não foi possível atualizar.'); return; }
+    setBookings((prev) => prev.map((b) => b.id === id ? { ...b, status, ...(status === 'cancelled' ? { paid: false, payment_method: null } : {}) } : b));
+    toast.success(status === 'cancelled' ? 'Agendamento cancelado.' : 'Atualizado.');
   };
 
   // Carrega o cadastro de clientes (nome, telefone, e-mail, notas)
@@ -277,6 +290,29 @@ export default function CompanyDashboardPage() {
     setNoteClient(null);
     loadClients();
     toast.success('Anotação salva!');
+  };
+
+  const openClientDetail = (c: ClientStat) => {
+    setDetailClient(c);
+    const reg = registeredClients.find((r) => (r.phone || '').replace(/\D/g, '') === (c.phone || '').replace(/\D/g, ''));
+    setDetailEdit({ name: c.name, phone: c.phone || '', email: reg?.email || '' });
+  };
+
+  const saveClientEdit = async () => {
+    if (!detailClient || detailEdit.name.trim().length < 2) { toast.error('Informe o nome.'); return; }
+    setDetailSaving(true);
+    const { error } = await supabase.from('clients').upsert({
+      organization_id: orgId,
+      name: detailEdit.name.trim(),
+      phone: detailEdit.phone.trim() || null,
+      email: detailEdit.email.trim() || null,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'organization_id,phone' });
+    setDetailSaving(false);
+    if (error) { toast.error('Não foi possível salvar.'); return; }
+    setDetailClient(null);
+    loadClients();
+    toast.success('Cliente atualizado!');
   };
 
   const saveNewClient = async () => {
@@ -369,6 +405,11 @@ export default function CompanyDashboardPage() {
     perMember: Object.values(reportMemberMap).sort((a, b) => b.revenue - a.revenue),
     perMethod: PAYMENT_METHODS.map((m) => ({ method: m, value: reportMethod[m] || 0 })),
   };
+
+  // Lista de agendamentos do período (todos os status), mais recentes primeiro
+  const periodBookings = bookings
+    .filter((b) => new Date(b.start_time) >= periodStart)
+    .sort((a, b) => b.start_time.localeCompare(a.start_time));
 
   const avgTicket = totalBookings > 0 ? totalRevenue / totalBookings : 0;
   const cancellationRate = bookings.length > 0 ? ((cancelledTotal / bookings.length) * 100).toFixed(0) : '0';
@@ -499,7 +540,7 @@ export default function CompanyDashboardPage() {
 
         {/* Tabs */}
         <div className="flex gap-2 mb-6 overflow-x-auto pb-1">
-          {(['overview', 'clients', 'team', 'services'] as const).map((tab) => (
+          {(['overview', 'bookings', 'clients', 'team', 'services'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -509,7 +550,7 @@ export default function CompanyDashboardPage() {
                   : 'bg-white text-gray-500 border border-gray-200 hover:border-indigo-300 hover:text-indigo-600'
               }`}
             >
-              {tab === 'overview' ? '📊 Visão Geral' : tab === 'clients' ? '🤝 Clientes' : tab === 'team' ? '👥 Equipe' : '✂️ Serviços'}
+              {tab === 'overview' ? '📊 Visão Geral' : tab === 'bookings' ? '📋 Agendamentos' : tab === 'clients' ? '🤝 Clientes' : tab === 'team' ? '👥 Equipe' : '✂️ Serviços'}
             </button>
           ))}
         </div>
@@ -802,6 +843,87 @@ export default function CompanyDashboardPage() {
           </>
         )}
 
+        {/* ── Bookings Tab (relatório de agendamentos) ─────────────────────── */}
+        {activeTab === 'bookings' && (
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">Agendamentos</h2>
+                <p className="text-xs text-gray-400">{periodLabel} · {periodBookings.length} registro(s)</p>
+              </div>
+              <div className="flex bg-gray-100 rounded-xl p-1">
+                {([['today', 'Hoje'], ['week', 'Semana'], ['month', 'Mês'], ['all', 'Tudo']] as const).map(([v, label]) => (
+                  <button key={v} onClick={() => setPeriod(v)} className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all ${period === v ? 'bg-white text-indigo-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>{label}</button>
+                ))}
+              </div>
+            </div>
+            {periodBookings.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-8">Nenhum agendamento neste período.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-left text-xs text-gray-400 uppercase tracking-wider border-b border-gray-100">
+                      <th className="pb-2 pr-4 font-semibold">Data</th>
+                      <th className="pb-2 pr-4 font-semibold">Cliente</th>
+                      <th className="pb-2 pr-4 font-semibold hidden md:table-cell">Profissional</th>
+                      <th className="pb-2 pr-4 font-semibold hidden sm:table-cell">Serviço</th>
+                      <th className="pb-2 pr-4 font-semibold">Status</th>
+                      <th className="pb-2 font-semibold text-right">Pagamento</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {periodBookings.map((b: any) => {
+                      const cs = clientStats.find((c) => (c.phone || '').replace(/\D/g, '') === (b.client_phone || '').replace(/\D/g, '') && b.client_phone);
+                      return (
+                        <tr key={b.id} className="border-b border-gray-50 last:border-0">
+                          <td className="py-2 pr-4 text-gray-600 whitespace-nowrap">
+                            {new Date(b.start_time).toLocaleDateString('pt-BR')}<br />
+                            <span className="text-xs text-gray-400">{new Date(b.start_time).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</span>
+                          </td>
+                          <td className="py-2 pr-4">
+                            <button onClick={() => cs && openClientDetail(cs)} className={`font-medium text-left ${cs ? 'text-gray-800 hover:text-indigo-600' : 'text-gray-800'}`}>
+                              {b.client_name}
+                            </button>
+                            {b.client_phone && <p className="text-xs text-gray-400">{b.client_phone}</p>}
+                          </td>
+                          <td className="py-2 pr-4 text-gray-500 hidden md:table-cell">{membersMap[b.member_id] || '—'}</td>
+                          <td className="py-2 pr-4 text-gray-500 hidden sm:table-cell">{b.services?.name || '—'}</td>
+                          <td className="py-2 pr-4">
+                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                              b.status === 'cancelled' ? 'bg-red-50 text-red-500'
+                              : b.status === 'completed' ? 'bg-emerald-50 text-emerald-600'
+                              : b.status === 'pending' ? 'bg-amber-50 text-amber-600'
+                              : 'bg-indigo-50 text-indigo-600'
+                            }`}>
+                              {b.status === 'cancelled' ? 'Cancelado' : b.status === 'completed' ? 'Realizado' : b.status === 'pending' ? 'Pendente' : 'Confirmado'}
+                            </span>
+                          </td>
+                          <td className="py-2 text-right">
+                            {b.status === 'cancelled' ? (
+                              <span className="text-xs text-gray-300">—</span>
+                            ) : b.paid ? (
+                              <span className="text-xs text-emerald-600 font-semibold">{mask(`R$ ${(b.services?.price || 0).toFixed(0)}`)} · {b.payment_method}</span>
+                            ) : (
+                              <div className="flex items-center gap-1 justify-end">
+                                <select defaultValue="" onChange={(e) => { if (e.target.value) markBookingPaid(b.id, e.target.value); }} className="text-[11px] border border-gray-200 rounded-md px-1 py-0.5 text-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-400">
+                                  <option value="">Pagar…</option>
+                                  {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+                                </select>
+                                <button onClick={() => setBookingStatus(b.id, 'cancelled')} className="text-[11px] text-gray-400 hover:text-red-500 px-1" title="Cancelar">✕</button>
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Clients Tab ──────────────────────────────────────────────────── */}
         {activeTab === 'clients' && (
           <>
@@ -871,7 +993,7 @@ export default function CompanyDashboardPage() {
                       {filteredClients.map((c) => (
                         <tr key={c.phone || c.name} className="border-b border-gray-50 last:border-0">
                           <td className="py-3 pr-4">
-                            <button onClick={() => setDetailClient(c)} className="flex items-center gap-2.5 text-left hover:opacity-80 transition-opacity">
+                            <button onClick={() => openClientDetail(c)} className="flex items-center gap-2.5 text-left hover:opacity-80 transition-opacity">
                               <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 ${
                                 c.visits > 1 ? 'gradient-brand' : 'bg-gray-300'
                               }`}>
@@ -1112,9 +1234,15 @@ export default function CompanyDashboardPage() {
                 <div className="bg-emerald-50 rounded-xl p-3"><p className="text-sm font-extrabold text-emerald-700">{mask(`R$ ${detailClient.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`)}</p><p className="text-[11px] text-emerald-400">total gasto</p></div>
                 <div className="bg-gray-50 rounded-xl p-3"><p className="text-xs font-bold text-gray-700 truncate">{detailClient.lastVisit ? new Date(detailClient.lastVisit).toLocaleDateString('pt-BR') : '—'}</p><p className="text-[11px] text-gray-400">última visita</p></div>
               </div>
-              <div className="space-y-1.5 text-sm border-t border-gray-50 pt-3">
-                <p className="flex justify-between"><span className="text-gray-400">Telefone</span><strong className="text-gray-700">{detailClient.phone || '—'}</strong></p>
-                <p className="flex justify-between"><span className="text-gray-400">Profissional frequente</span><strong className="text-gray-700">{detailClient.favoriteMember}</strong></p>
+              {/* Edição dos dados do cliente */}
+              <div className="space-y-2 border-t border-gray-50 pt-3">
+                <p className="text-[11px] uppercase tracking-wider font-bold text-gray-400">Editar dados</p>
+                <input type="text" value={detailEdit.name} onChange={(e) => setDetailEdit({ ...detailEdit, name: e.target.value })} placeholder="Nome" className="w-full px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="tel" value={detailEdit.phone} onChange={(e) => setDetailEdit({ ...detailEdit, phone: e.target.value })} placeholder="Telefone" className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <input type="email" value={detailEdit.email} onChange={(e) => setDetailEdit({ ...detailEdit, email: e.target.value })} placeholder="E-mail" className="px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <p className="text-xs text-gray-400">Profissional frequente: <strong className="text-gray-600">{detailClient.favoriteMember}</strong></p>
               </div>
               <div className="flex gap-2 pt-1">
                 {detailClient.phone && (
@@ -1122,11 +1250,9 @@ export default function CompanyDashboardPage() {
                     <a href={`https://wa.me/55${detailClient.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer">WhatsApp</a>
                   </Button>
                 )}
-                {detailClient.phone && (
-                  <Button onClick={() => { const c = detailClient; setDetailClient(null); openNote(c.name, c.phone); }} className="flex-1 gradient-brand">
-                    <StickyNote className="w-4 h-4" /> Anotações
-                  </Button>
-                )}
+                <Button onClick={saveClientEdit} disabled={detailSaving} className="flex-1 gradient-brand">
+                  {detailSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Salvar'}
+                </Button>
               </div>
             </div>
           )}
