@@ -266,6 +266,20 @@ export default function CompanyDashboardPage() {
     toast.success(`Pagamento registrado (${method}).`);
   };
 
+  const changePaymentMethod = async (id: string, method: string) => {
+    const { error } = await supabase.from('bookings').update({ payment_method: method }).eq('id', id);
+    if (error) { toast.error('Não foi possível alterar a forma.'); return; }
+    setBookings((prev) => prev.map((b) => b.id === id ? { ...b, payment_method: method } : b));
+    toast.success(`Forma alterada para ${method}.`);
+  };
+
+  const markUnpaid = async (id: string) => {
+    const { error } = await supabase.from('bookings').update({ paid: false, payment_method: null, paid_at: null }).eq('id', id);
+    if (error) { toast.error('Não foi possível atualizar.'); return; }
+    setBookings((prev) => prev.map((b) => b.id === id ? { ...b, paid: false, payment_method: null } : b));
+    toast.success('Marcado como não pago.');
+  };
+
   const waReminder = (b: any) => {
     const phone = (b.client_phone || '').replace(/\D/g, '');
     const d = new Date(b.start_time);
@@ -1156,7 +1170,12 @@ export default function CompanyDashboardPage() {
                           {b.status === 'cancelled' ? (
                             <span className="text-xs text-red-400 font-medium">Cancelado</span>
                           ) : b.paid ? (
-                            <span className="text-xs text-emerald-600 font-semibold">✓ Pago{b.payment_method ? ` · ${b.payment_method}` : ''}</span>
+                            <div className="flex items-center gap-1 justify-end">
+                              <span className="text-xs text-emerald-600 font-semibold">✓</span>
+                              <select value={b.payment_method || ''} onChange={(e) => changePaymentMethod(b.id, e.target.value)} className="text-[11px] border border-emerald-200 rounded-md px-1 py-0.5 text-emerald-700 bg-emerald-50 focus:outline-none focus:ring-1 focus:ring-emerald-400" title="Trocar forma de pagamento">
+                                {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+                              </select>
+                            </div>
                           ) : (
                             <div className="flex items-center gap-1 justify-end">
                               <span className="text-xs text-gray-400">R$ {(b.amount ?? (b.services?.price || 0)).toFixed(0)}</span>
@@ -1267,7 +1286,13 @@ export default function CompanyDashboardPage() {
                               {b.status === 'cancelled' ? (
                                 <span className="text-xs text-gray-300">—</span>
                               ) : b.paid ? (
-                                <span className="text-xs text-emerald-600 font-semibold">{mask(`R$ ${(b.amount ?? (b.services?.price || 0)).toFixed(0)}`)} · {b.payment_method}</span>
+                                <div className="flex items-center gap-1 justify-end">
+                                  <span className="text-xs text-emerald-600 font-semibold">{mask(`R$ ${(b.amount ?? (b.services?.price || 0)).toFixed(0)}`)}</span>
+                                  <select value={b.payment_method || ''} onChange={(e) => changePaymentMethod(b.id, e.target.value)} className="text-[11px] border border-emerald-200 rounded-md px-1 py-0.5 text-emerald-700 bg-emerald-50 focus:outline-none focus:ring-1 focus:ring-emerald-400" title="Trocar forma de pagamento">
+                                    {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+                                  </select>
+                                  <button onClick={() => markUnpaid(b.id)} className="text-[11px] text-gray-300 hover:text-red-500 px-1" title="Marcar não pago">✕</button>
+                                </div>
                               ) : (
                                 <>
                                   <select defaultValue="" onChange={(e) => { if (e.target.value) markBookingPaid(b.id, e.target.value); }} className="text-[11px] border border-gray-200 rounded-md px-1 py-0.5 text-gray-500 focus:outline-none focus:ring-1 focus:ring-indigo-400">
