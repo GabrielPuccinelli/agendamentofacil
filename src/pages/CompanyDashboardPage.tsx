@@ -576,6 +576,36 @@ export default function CompanyDashboardPage() {
   const expensesTotal = periodExpenses.reduce((a, e) => a + Number(e.amount), 0);
   const profit = report.totals.received - expensesTotal;
 
+  // Comparativo com o período anterior equivalente
+  const prevRange: [Date, Date] | null = (() => {
+    if (period === 'today') { const s = new Date(periodStart); s.setDate(s.getDate() - 1); return [s, new Date(periodStart)]; }
+    if (period === 'week') { const s = new Date(periodStart); s.setDate(s.getDate() - 7); return [s, new Date(periodStart)]; }
+    if (period === 'month') { return [new Date(now.getFullYear(), now.getMonth() - 1, 1), new Date(now.getFullYear(), now.getMonth(), 1)]; }
+    return null;
+  })();
+  let prevRevenue = 0, prevReceived = 0, prevCount = 0;
+  if (prevRange) bookings.forEach((b: any) => {
+    if (b.status === 'cancelled') return;
+    const t = new Date(b.start_time);
+    if (t >= prevRange[0] && t < prevRange[1]) {
+      const p = b.amount ?? (b.services?.price || 0);
+      prevCount++; prevRevenue += p; if (b.paid) prevReceived += p;
+    }
+  });
+  const pct = (cur: number, prev: number) => prev > 0 ? ((cur - prev) / prev) * 100 : (cur > 0 ? 100 : 0);
+
+  // Relatório por serviço (exclui produtos e cancelados) no período
+  const serviceMap: Record<string, { name: string; count: number; revenue: number }> = {};
+  bookings.forEach((b: any) => {
+    if (b.status === 'cancelled' || b.services?.is_product || new Date(b.start_time) < periodStart) return;
+    const name = b.services?.name || '—';
+    const p = b.amount ?? (b.services?.price || 0);
+    const r = serviceMap[name] || (serviceMap[name] = { name, count: 0, revenue: 0 });
+    r.count++; r.revenue += p;
+  });
+  const topServices = Object.values(serviceMap).sort((a, b) => b.revenue - a.revenue);
+  const maxServiceRev = Math.max(...topServices.map((s) => s.revenue), 1);
+
   // ── Vendas de produto do período ────────────────────────────────────────────
   const productSales = bookings
     .filter((b) => b.services?.is_product && b.status !== 'cancelled' && new Date(b.start_time) >= periodStart)
@@ -949,6 +979,66 @@ export default function CompanyDashboardPage() {
                   </table>
                 </div>
               )}
+            </div>
+
+            {/* Comparativo + Por serviço */}
+            <div className="grid lg:grid-cols-2 gap-6 mb-6">
+              {/* Comparativo com período anterior */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h2 className="text-lg font-bold text-gray-900 mb-1">Comparativo</h2>
+                <p className="text-xs text-gray-400 mb-4">{periodLabel} vs período anterior</p>
+                {!prevRange ? (
+                  <p className="text-sm text-gray-400 py-6 text-center">Selecione Hoje, Semana ou Mês para comparar.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {([
+                      ['Recebido', report.totals.received, prevReceived, true],
+                      ['Faturamento', report.totals.revenue, prevRevenue, true],
+                      ['Atendimentos', report.totals.count, prevCount, false],
+                    ] as const).map(([label, cur, prev, money]) => {
+                      const v = pct(cur, prev);
+                      const up = cur >= prev;
+                      return (
+                        <div key={label} className="flex items-center justify-between gap-3 border-b border-gray-50 last:border-0 pb-2">
+                          <div>
+                            <p className="text-sm text-gray-500">{label}</p>
+                            <p className="text-lg font-extrabold text-gray-900">{money ? mask(`R$ ${Number(cur).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`) : cur}</p>
+                          </div>
+                          <div className="text-right">
+                            <span className={`inline-flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${up ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}>
+                              {up ? '▲' : '▼'} {Math.abs(v).toFixed(0)}%
+                            </span>
+                            <p className="text-[11px] text-gray-400 mt-0.5">antes: {money ? `R$ ${Number(prev).toLocaleString('pt-BR', { minimumFractionDigits: 0 })}` : prev}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* Por serviço */}
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+                <h2 className="text-lg font-bold text-gray-900 mb-1">Por serviço</h2>
+                <p className="text-xs text-gray-400 mb-4">Faturamento por serviço · {periodLabel}</p>
+                {topServices.length === 0 ? (
+                  <p className="text-sm text-gray-400 py-6 text-center">Nenhum atendimento no período.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {topServices.slice(0, 6).map((s, i) => (
+                      <div key={s.name}>
+                        <div className="flex items-center justify-between text-sm mb-1">
+                          <span className="text-gray-700 truncate flex-1">{s.name} <span className="text-gray-400 text-xs">· {s.count}x</span></span>
+                          <span className="font-bold text-emerald-600 shrink-0">{mask(`R$ ${s.revenue.toLocaleString('pt-BR', { minimumFractionDigits: 0 })}`)}</span>
+                        </div>
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                          <div className={`h-full rounded-full ${i === 0 ? 'gradient-brand' : 'bg-indigo-300'}`} style={{ width: `${(s.revenue / maxServiceRev) * 100}%` }} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
