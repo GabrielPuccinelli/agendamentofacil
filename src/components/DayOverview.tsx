@@ -28,6 +28,16 @@ type Props = { memberId: string };
 
 const waLink = (phone: string) => `https://wa.me/55${phone.replace(/\D/g, '')}`;
 
+const waReminder = (b: { client_name: string; client_phone: string | null; start_time: string; services: { name: string } | null }) => {
+  const phone = (b.client_phone || '').replace(/\D/g, '');
+  const d = new Date(b.start_time);
+  const date = d.toLocaleDateString('pt-BR');
+  const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const svc = b.services?.name || 'seu atendimento';
+  const msg = `Olá ${b.client_name}! Passando para lembrar do seu horário de ${svc} em ${date} às ${time}. Qualquer dúvida, é só responder. 😊`;
+  return `https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`;
+};
+
 const dayLabel = (d: Date) =>
   isToday(d) ? 'Hoje' : isTomorrow(d) ? 'Amanhã' : format(d, "EEEE, dd 'de' MMMM", { locale: ptBR });
 
@@ -364,6 +374,11 @@ export default function DayOverview({ memberId }: Props) {
                           <p className="text-sm text-gray-800 truncate">{b.client_name}</p>
                           {b.services?.name && <p className="text-[11px] text-gray-400 truncate">{b.services.name}</p>}
                         </div>
+                        {b.client_phone && (
+                          <a href={waReminder(b)} target="_blank" rel="noopener noreferrer" className="shrink-0 text-emerald-600 hover:text-emerald-700" title="Enviar lembrete no WhatsApp">
+                            <Phone className="w-4 h-4" />
+                          </a>
+                        )}
                       </div>
                     ))}
                   </div>
