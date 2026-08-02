@@ -107,18 +107,17 @@ export default function CompanyDashboardPage() {
   const [monthData, setMonthData] = useState<MonthData[]>([]);
   const [membersMap, setMembersMap] = useState<Record<string, string>>({});
 
-  const initialTab = location.pathname.endsWith('/services')
-    ? 'services'
-    : location.pathname.endsWith('/team')
-    ? 'team'
-    : location.pathname.endsWith('/clients')
-    ? 'clients'
-    : location.pathname.endsWith('/bookings')
-    ? 'bookings'
-    : location.pathname.endsWith('/sales')
-    ? 'sales'
+  const tabFromPath = (path: string): 'overview' | 'team' | 'services' | 'clients' | 'bookings' | 'sales' =>
+    path.endsWith('/services') ? 'services'
+    : path.endsWith('/team') ? 'team'
+    : path.endsWith('/clients') ? 'clients'
+    : path.endsWith('/bookings') ? 'bookings'
+    : path.endsWith('/sales') ? 'sales'
     : 'overview';
-  const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'services' | 'clients' | 'bookings' | 'sales'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'overview' | 'team' | 'services' | 'clients' | 'bookings' | 'sales'>(tabFromPath(location.pathname));
+
+  // Mantém a aba em sincronia com a URL (mesma página serve várias rotas /company/*)
+  useEffect(() => { setActiveTab(tabFromPath(location.pathname)); }, [location.pathname]);
   const [clientSearch, setClientSearch] = useState('');
   const [period, setPeriod] = useState<'today' | 'week' | 'month' | 'all'>('month');
   const [hideMoney, setHideMoney] = useState(() => localStorage.getItem('hide_money') === '1');
@@ -766,7 +765,7 @@ export default function CompanyDashboardPage() {
           {(['overview', 'bookings', 'sales', 'clients', 'team', 'services'] as const).map((tab) => (
             <button
               key={tab}
-              onClick={() => setActiveTab(tab)}
+              onClick={() => navigate(tab === 'overview' ? '/company/dashboard' : `/company/${tab}`)}
               className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${
                 activeTab === tab
                   ? 'gradient-brand text-white shadow-md shadow-indigo-500/20'
