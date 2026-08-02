@@ -145,6 +145,13 @@ export default function DayOverview({ memberId }: Props) {
     toast.success(`Serviço concluído e pago (${method}).`);
   };
 
+  const changeMethod = async (id: string, method: string) => {
+    const { error } = await supabase.from('bookings').update({ payment_method: method }).eq('id', id);
+    if (error) { toast.error('Não foi possível alterar a forma.'); return; }
+    setBookings((prev) => prev.map((b) => b.id === id ? { ...b, payment_method: method } : b));
+    toast.success(`Forma alterada para ${method}.`);
+  };
+
   const markNoShow = async (id: string) => {
     const { error } = await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', id);
     if (error) { toast.error('Não foi possível atualizar.'); return; }
@@ -315,8 +322,11 @@ export default function DayOverview({ memberId }: Props) {
                       {/* Conclusão / pagamento */}
                       <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                         {b.paid ? (
-                          <span className="inline-flex items-center gap-1 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
-                            <Check className="w-3 h-3" /> Realizado · {b.payment_method || 'pago'}
+                          <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-lg">
+                            <Check className="w-3 h-3" /> Realizado ·
+                            <select value={b.payment_method || ''} onChange={(e) => changeMethod(b.id, e.target.value)} className="bg-transparent text-emerald-700 font-semibold focus:outline-none cursor-pointer" title="Trocar forma de pagamento">
+                              {PAYMENT_METHODS.map((m) => <option key={m} value={m}>{m}</option>)}
+                            </select>
                           </span>
                         ) : (
                           <>
