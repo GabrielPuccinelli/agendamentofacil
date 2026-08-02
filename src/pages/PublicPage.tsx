@@ -16,7 +16,7 @@ import { ptBR } from 'date-fns/locale';
 import { format, addMinutes, setHours, setMinutes } from 'date-fns';
 
 type Organization = { id: string; name: string; require_confirmation?: boolean; buffer_minutes?: number; };
-type Service = { id: string; name: string; duration: number; price: number; };
+type Service = { id: string; name: string; duration: number; price: number; is_combo?: boolean; };
 type Availability = { day_of_week: number; start_time: string; end_time: string; };
 type Review = { rating: number; comment: string | null; client_name: string | null; created_at: string };
 type PortfolioItem = { id: string; image_url: string; caption: string | null };
@@ -43,6 +43,7 @@ export default function PublicPage() {
   const [memberAvatar, setMemberAvatar] = useState<string | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [comboItems, setComboItems] = useState<Record<string, string[]>>({});
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
@@ -128,6 +129,17 @@ export default function PublicPage() {
           .map((item: any) => item.services)
           .filter((s: any) => s && s.duration > 0 && !s.is_product) as Service[];
         setServices(professionalServices);
+
+        // Itens dos combos (para exibir "inclui: ...")
+        const comboIds = professionalServices.filter((s) => s.is_combo).map((s) => s.id);
+        if (comboIds.length > 0) {
+          supabase.from('combo_items').select('combo_id, services:item_service_id(name)').in('combo_id', comboIds)
+            .then(({ data }) => {
+              const map: Record<string, string[]> = {};
+              (data || []).forEach((r: any) => { if (r.services?.name) (map[r.combo_id] = map[r.combo_id] || []).push(r.services.name); });
+              setComboItems(map);
+            });
+        }
 
         const { data: availabilityData, error: availabilityError } = await supabase
           .from('availability')
@@ -445,8 +457,16 @@ export default function PublicPage() {
                   }`}
                 >
                   <div className="flex justify-between items-start">
-                    <div>
-                      <p className="font-bold text-gray-900">{service.name}</p>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-bold text-gray-900">{service.name}</p>
+                        {service.is_combo && (
+                          <span className="text-[10px] bg-violet-600 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Combo</span>
+                        )}
+                      </div>
+                      {service.is_combo && comboItems[service.id] && (
+                        <p className="text-xs text-violet-500 mt-0.5">Inclui: {comboItems[service.id].join(' + ')}</p>
+                      )}
                       <p className="text-sm text-gray-400 mt-0.5">{service.duration} minutos</p>
                     </div>
                     <span className={`text-base font-bold shrink-0 ml-3 ${selectedService?.id === service.id ? 'text-indigo-600' : 'text-gray-700'}`}>

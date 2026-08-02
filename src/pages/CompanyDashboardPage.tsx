@@ -267,6 +267,16 @@ export default function CompanyDashboardPage() {
     toast.success(`Pagamento registrado (${method}).`);
   };
 
+  const waReminder = (b: any) => {
+    const phone = (b.client_phone || '').replace(/\D/g, '');
+    const d = new Date(b.start_time);
+    const date = d.toLocaleDateString('pt-BR');
+    const time = d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    const svc = b.services?.name || 'seu atendimento';
+    const msg = `Olá ${b.client_name}! Passando para lembrar do seu horário de ${svc} em ${date} às ${time}. Qualquer dúvida, é só responder. 😊`;
+    return `https://wa.me/55${phone}?text=${encodeURIComponent(msg)}`;
+  };
+
   const exportBookingsCsv = () => {
     const header = ['Data', 'Hora', 'Cliente', 'Telefone', 'Profissional', 'Serviço', 'Status', 'Pago', 'Forma', 'Valor'];
     const rows = filteredBookings.map((b: any) => [
@@ -1232,7 +1242,14 @@ export default function CompanyDashboardPage() {
                             <button onClick={() => cs && openClientDetail(cs)} className={`font-medium text-left ${cs ? 'text-gray-800 hover:text-indigo-600' : 'text-gray-800'}`}>
                               {b.client_name}
                             </button>
-                            {b.client_phone && <p className="text-xs text-gray-400">{b.client_phone}</p>}
+                            {b.client_phone && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-400">{b.client_phone}</span>
+                                {b.status !== 'cancelled' && new Date(b.start_time) > new Date() && (
+                                  <a href={waReminder(b)} target="_blank" rel="noopener noreferrer" className="text-[11px] text-emerald-600 hover:text-emerald-700 font-medium">lembrar ↗</a>
+                                )}
+                              </div>
+                            )}
                           </td>
                           <td className="py-2 pr-4 text-gray-500 hidden md:table-cell">{membersMap[b.member_id] || '—'}</td>
                           <td className="py-2 pr-4 text-gray-500 hidden sm:table-cell">{b.services?.name || '—'}</td>
