@@ -13,9 +13,9 @@ import { useDocumentMeta } from '../lib/useDocumentMeta';
 import { DayPicker } from 'react-day-picker';
 import 'react-day-picker/dist/style.css';
 import { ptBR } from 'date-fns/locale';
-import { format, addMinutes, setHours, setMinutes } from 'date-fns';
+import { format, addMinutes, setHours, setMinutes, addDays } from 'date-fns';
 
-type Organization = { id: string; name: string; require_confirmation?: boolean; buffer_minutes?: number; };
+type Organization = { id: string; name: string; require_confirmation?: boolean; buffer_minutes?: number; min_notice_hours?: number; booking_window_days?: number; max_per_day?: number | null; };
 type Service = { id: string; name: string; duration: number; price: number; is_combo?: boolean; };
 type Availability = { day_of_week: number; start_time: string; end_time: string; };
 type Review = { rating: number; comment: string | null; client_name: string | null; created_at: string };
@@ -78,7 +78,7 @@ export default function PublicPage() {
 
         const { data: orgData, error: orgError } = await supabase
           .from('organizations')
-          .select('id, name, require_confirmation, buffer_minutes')
+          .select('id, name, require_confirmation, buffer_minutes, min_notice_hours, booking_window_days, max_per_day')
           .eq('slug', organizationSlug)
           .single();
 
@@ -96,7 +96,7 @@ export default function PublicPage() {
 
         const member = membersData[0];
 
-        setOrganization({ id: orgData.id, name: orgData.name, require_confirmation: orgData.require_confirmation, buffer_minutes: orgData.buffer_minutes });
+        setOrganization({ id: orgData.id, name: orgData.name, require_confirmation: orgData.require_confirmation, buffer_minutes: orgData.buffer_minutes, min_notice_hours: orgData.min_notice_hours, booking_window_days: orgData.booking_window_days, max_per_day: orgData.max_per_day });
         setMemberId(member.id);
         setMemberName(member.name);
         setMemberAvatar(member.avatar_url || null);
@@ -180,8 +180,21 @@ export default function PublicPage() {
         setAvailableSlots([]);
         return;
       }
+      // Limite de agendamentos por dia (cal.com "booking limits")
+      const maxPerDay = organization?.max_per_day;
+      if (maxPerDay != null && maxPerDay > 0) {
+        const { data: dayCount } = await supabase.rpc('count_day_bookings', {
+          p_member_id: memberId,
+          p_from: `${dateStr}T00:00:00Z`,
+          p_to: `${dateStr}T23:59:59Z`,
+        });
+        if ((dayCount ?? 0) >= maxPerDay) { setAvailableSlots([]); return; }
+      }
+
       const busy = busyData || [];
       const now = new Date();
+      // Antecedência mínima (cal.com "minimum notice")
+      const minNotice = new Date(now.getTime() + (organization?.min_notice_hours || 0) * 3600000);
       const bufferMs = (organization?.buffer_minutes || 0) * 60000;
       const slots: string[] = [];
       const { start_time, end_time } = workHours;
@@ -199,8 +212,8 @@ export default function PublicPage() {
           const apptEnd = new Date(new Date(appt.end_time).getTime() + bufferMs);
           return currentSlotTime < apptEnd && slotEnd > apptStart;
         });
-        const isPast = currentSlotTime <= now;
-        if (!isOccupied && !isPast) slots.push(format(currentSlotTime, 'HH:mm'));
+        const tooSoon = currentSlotTime <= minNotice;
+        if (!isOccupied && !tooSoon) slots.push(format(currentSlotTime, 'HH:mm'));
         currentSlotTime = slotEnd;
       }
       setAvailableSlots(slots);
@@ -496,6 +509,7 @@ export default function PublicPage() {
                   onSelect={(d) => { setSelectedDate(d); setSelectedSlot(null); }}
                   locale={ptBR}
                   fromDate={new Date()}
+                  toDate={addDays(new Date(), organization?.booking_window_days || 60)}
                   disabled={(day) => !availability.some((a) => a.day_of_week === day.getDay())}
                   className="border border-gray-100 rounded-xl p-2 shadow-sm"
                 />
