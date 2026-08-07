@@ -8,7 +8,7 @@ import { AppLoading } from '../components/LoadingScreen';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { toast } from 'sonner';
-import { Loader2, Upload, Building2, ExternalLink } from 'lucide-react';
+import { Loader2, Upload, Building2, ExternalLink, Code2, Copy, Check } from 'lucide-react';
 
 const inputCls = 'block w-full px-4 py-3 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all';
 
@@ -39,6 +39,7 @@ export default function CompanyProfilePage() {
   const [org, setOrg] = useState<OrgProfile | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
+  const [embedCopied, setEmbedCopied] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -125,6 +126,12 @@ export default function CompanyProfilePage() {
   const handleLogout = async () => { await supabase.auth.signOut(); };
 
   if (loading || !sidebarProps || !org) return <AppLoading />;
+
+  const embedCode = `<iframe src="${window.location.origin}/${org.slug}?embed=1" width="100%" height="720" style="border:0;border-radius:12px" title="Agende com ${org.name}"></iframe>`;
+  const copyEmbed = async () => {
+    try { await navigator.clipboard.writeText(embedCode); setEmbedCopied(true); toast.success('Código copiado!'); setTimeout(() => setEmbedCopied(false), 2000); }
+    catch { toast.error('Não foi possível copiar.'); }
+  };
 
   return (
     <AppShell {...sidebarProps} onLogout={handleLogout}>
@@ -283,6 +290,21 @@ export default function CompanyProfilePage() {
             </Button>
           </div>
         </form>
+
+        {/* Incorporar no site */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mt-6">
+          <div className="flex items-center gap-2 mb-1">
+            <Code2 className="w-5 h-5 text-indigo-500" />
+            <h2 className="text-lg font-bold text-gray-900">Incorporar no seu site</h2>
+          </div>
+          <p className="text-xs text-gray-400 mb-4">Cole este código no seu site para o agendamento aparecer embutido (sem sair da página).</p>
+          <pre className="bg-slate-900 text-slate-100 text-xs rounded-xl p-4 overflow-x-auto whitespace-pre-wrap break-all">{embedCode}</pre>
+          <div className="flex justify-end mt-3">
+            <Button type="button" variant="outline" onClick={copyEmbed}>
+              {embedCopied ? <><Check className="w-4 h-4 text-emerald-500" /> Copiado</> : <><Copy className="w-4 h-4" /> Copiar código</>}
+            </Button>
+          </div>
+        </div>
       </div>
     </AppShell>
   );

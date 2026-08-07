@@ -32,6 +32,7 @@ const StepHeader = ({ number, title, active }: { number: string; title: string; 
 
 export default function PublicPage() {
   const { organizationSlug, memberSlug } = useParams<{ organizationSlug: string; memberSlug: string }>();
+  const embed = new URLSearchParams(window.location.search).get('embed') === '1';
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -422,9 +423,11 @@ export default function PublicPage() {
         <div className="absolute top-0 left-1/4 w-48 h-48 bg-white/10 rounded-full blur-3xl" />
         <div className="absolute bottom-0 right-1/4 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
         <div className="relative z-10">
-          <div className="flex justify-center mb-4">
-            <BackButton to={`/${organizationSlug}`} label={organization.name} variant="light" />
-          </div>
+          {!embed && (
+            <div className="flex justify-center mb-4">
+              <BackButton to={`/${organizationSlug}`} label={organization.name} variant="light" />
+            </div>
+          )}
           {memberAvatar ? (
             <img
               src={memberAvatar}
