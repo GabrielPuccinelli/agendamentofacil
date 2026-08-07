@@ -16,7 +16,7 @@ import { ptBR } from 'date-fns/locale';
 import { format, addMinutes, setHours, setMinutes, addDays } from 'date-fns';
 
 type Organization = { id: string; name: string; require_confirmation?: boolean; buffer_minutes?: number; min_notice_hours?: number; booking_window_days?: number; max_per_day?: number | null; };
-type Service = { id: string; name: string; duration: number; price: number; is_combo?: boolean; };
+type Service = { id: string; name: string; duration: number; price: number; is_combo?: boolean; is_online?: boolean; online_url?: string | null; };
 type Availability = { day_of_week: number; start_time: string; end_time: string; };
 type Review = { rating: number; comment: string | null; client_name: string | null; created_at: string };
 type PortfolioItem = { id: string; image_url: string; caption: string | null };
@@ -360,8 +360,18 @@ export default function PublicPage() {
               ? 'foi solicitado. Você receberá a confirmação do profissional em breve.'
               : 'está confirmado.'}
           </p>
+          {selectedService?.is_online && (
+            <div className="mt-6 bg-sky-50 border border-sky-100 rounded-2xl p-4 text-left">
+              <p className="text-xs font-semibold text-sky-800 mb-1">Atendimento online 💻</p>
+              {selectedService.online_url ? (
+                <a href={selectedService.online_url} target="_blank" rel="noopener noreferrer" className="text-xs text-sky-600 hover:text-sky-800 break-all underline">{selectedService.online_url}</a>
+              ) : (
+                <p className="text-xs text-sky-500">O profissional enviará o link da chamada.</p>
+              )}
+            </div>
+          )}
           {manageToken && (
-            <div className="mt-6 bg-indigo-50 border border-indigo-100 rounded-2xl p-4 text-left">
+            <div className="mt-4 bg-indigo-50 border border-indigo-100 rounded-2xl p-4 text-left">
               <p className="text-xs font-semibold text-indigo-800 mb-1">Precisa cancelar ou remarcar?</p>
               <p className="text-xs text-indigo-500 mb-3">Guarde este link — é a sua chave para gerenciar o agendamento.</p>
               <button
@@ -475,6 +485,9 @@ export default function PublicPage() {
                         <p className="font-bold text-gray-900">{service.name}</p>
                         {service.is_combo && (
                           <span className="text-[10px] bg-violet-600 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Combo</span>
+                        )}
+                        {service.is_online && (
+                          <span className="text-[10px] bg-sky-500 text-white px-2 py-0.5 rounded-full font-bold uppercase tracking-wide">Online</span>
                         )}
                       </div>
                       {service.is_combo && comboItems[service.id] && (
