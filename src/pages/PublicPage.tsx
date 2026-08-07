@@ -45,6 +45,8 @@ export default function PublicPage() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [comboItems, setComboItems] = useState<Record<string, string[]>>({});
+  const [questions, setQuestions] = useState<{ id: string; label: string; required: boolean }[]>([]);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
   const [selectedService, setSelectedService] = useState<Service | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(new Date());
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
@@ -84,6 +86,9 @@ export default function PublicPage() {
           .single();
 
         if (orgError || !orgData) throw new Error('Organização não encontrada. Verifique o link.');
+
+        supabase.from('booking_questions').select('id, label, required').eq('organization_id', orgData.id).order('sort')
+          .then(({ data }) => setQuestions((data || []) as any));
 
         const { data: membersData, error: memberError } = await supabase
           .from('members')
@@ -241,6 +246,11 @@ export default function PublicPage() {
       const startAt = setMinutes(setHours(selectedDate, startH), startM);
       const endAt = addMinutes(startAt, selectedService.duration);
       const status = organization?.require_confirmation ? 'pending' : 'confirmed';
+      const answersByLabel = questions.reduce<Record<string, string>>((acc, q) => {
+        const v = (answers[q.id] || '').trim();
+        if (v) acc[q.label] = v;
+        return acc;
+      }, {});
       const { data: created, error: insertError } = await supabase.from('bookings').insert({
         member_id: memberId,
         service_id: selectedService.id,
@@ -250,6 +260,7 @@ export default function PublicPage() {
         start_time: startAt.toISOString(),
         end_time: endAt.toISOString(),
         status,
+        custom_answers: Object.keys(answersByLabel).length ? answersByLabel : null,
       }).select('manage_token').single();
       if (insertError) {
         // Constraint de sobreposição → alguém pegou o horário primeiro
@@ -641,6 +652,22 @@ export default function PublicPage() {
                   className="block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 text-sm"
                 />
               </div>
+
+              {/* Perguntas personalizadas da empresa */}
+              {questions.map((q) => (
+                <div key={q.id}>
+                  <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                    {q.label} {q.required && <span className="text-rose-400">*</span>}
+                  </label>
+                  <input
+                    type="text"
+                    required={q.required}
+                    value={answers[q.id] || ''}
+                    onChange={(e) => setAnswers({ ...answers, [q.id]: e.target.value })}
+                    className="block w-full px-4 py-3 border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all duration-200 text-sm"
+                  />
+                </div>
+              ))}
 
               {/* Summary */}
               <div className="bg-indigo-50 rounded-xl p-4 text-sm space-y-1.5">

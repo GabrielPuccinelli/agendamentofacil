@@ -40,6 +40,9 @@ export default function CompanyProfilePage() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [embedCopied, setEmbedCopied] = useState(false);
+  const [questions, setQuestions] = useState<{ id: string; label: string; required: boolean }[]>([]);
+  const [qLabel, setQLabel] = useState('');
+  const [qRequired, setQRequired] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -67,6 +70,8 @@ export default function CompanyProfilePage() {
 
       if (!orgData) { navigate('/dashboard'); return; }
       setOrg(orgData);
+      supabase.from('booking_questions').select('id, label, required').eq('organization_id', orgData.id).order('sort')
+        .then(({ data }) => setQuestions((data || []) as any));
       setSidebarProps({
         userProfile: { name: member.name, phone: member.phone, avatarUrl: member.avatar_url || '' },
         isAdmin: true,
@@ -126,6 +131,21 @@ export default function CompanyProfilePage() {
   const handleLogout = async () => { await supabase.auth.signOut(); };
 
   if (loading || !sidebarProps || !org) return <AppLoading />;
+
+  const addQuestion = async () => {
+    if (qLabel.trim().length < 2) { toast.error('Escreva a pergunta.'); return; }
+    const { data, error } = await supabase.from('booking_questions')
+      .insert({ organization_id: org.id, label: qLabel.trim(), required: qRequired, sort: questions.length })
+      .select('id, label, required').single();
+    if (error) { toast.error('Não foi possível adicionar.'); return; }
+    setQuestions([...questions, data as any]); setQLabel(''); setQRequired(false);
+    toast.success('Pergunta adicionada!');
+  };
+  const removeQuestion = async (id: string) => {
+    const { error } = await supabase.from('booking_questions').delete().eq('id', id);
+    if (error) { toast.error('Não foi possível remover.'); return; }
+    setQuestions(questions.filter((q) => q.id !== id));
+  };
 
   const embedCode = `<iframe src="${window.location.origin}/${org.slug}?embed=1" width="100%" height="720" style="border:0;border-radius:12px" title="Agende com ${org.name}"></iframe>`;
   const copyEmbed = async () => {
@@ -290,6 +310,29 @@ export default function CompanyProfilePage() {
             </Button>
           </div>
         </form>
+
+        {/* Perguntas do agendamento */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mt-6">
+          <h2 className="text-lg font-bold text-gray-900 mb-1">Perguntas do agendamento</h2>
+          <p className="text-xs text-gray-400 mb-4">Campos extras que o cliente responde ao agendar (ex.: "Já é cliente?", "Alguma restrição?").</p>
+          <div className="flex items-end gap-2 flex-wrap mb-4">
+            <input type="text" value={qLabel} onChange={(e) => setQLabel(e.target.value)} placeholder="Escreva a pergunta" className="flex-1 min-w-[180px] px-3 py-2 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <label className="flex items-center gap-1.5 text-sm text-gray-600"><input type="checkbox" checked={qRequired} onChange={(e) => setQRequired(e.target.checked)} className="rounded" /> Obrigatória</label>
+            <Button type="button" onClick={addQuestion} className="gradient-brand">Adicionar</Button>
+          </div>
+          {questions.length === 0 ? (
+            <p className="text-sm text-gray-400">Nenhuma pergunta. O formulário pede só nome, telefone e e-mail.</p>
+          ) : (
+            <div className="space-y-2">
+              {questions.map((q) => (
+                <div key={q.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2">
+                  <span className="flex-1 text-sm text-gray-700">{q.label}{q.required && <span className="text-rose-400"> *</span>}</span>
+                  <button onClick={() => removeQuestion(q.id)} className="text-gray-300 hover:text-red-500 text-xs px-1">✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Incorporar no site */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mt-6">
