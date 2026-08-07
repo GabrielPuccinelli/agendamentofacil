@@ -36,6 +36,7 @@ const gradients = [
 
 export default function OrganizationPage() {
   const { organizationSlug } = useParams<{ organizationSlug: string }>();
+  const embed = new URLSearchParams(window.location.search).get('embed') === '1';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [organization, setOrganization] = useState<Organization | null>(null);
@@ -298,9 +299,11 @@ export default function OrganizationPage() {
           </section>
         )}
 
-        <p className="text-center text-xs text-gray-300 pt-4">
-          Agendamento online por <Link to="/" className="text-indigo-300 hover:text-indigo-500 transition-colors font-medium">AgendaFácil</Link>
-        </p>
+        {!embed && (
+          <p className="text-center text-xs text-gray-300 pt-4">
+            Agendamento online por <Link to="/" className="text-indigo-300 hover:text-indigo-500 transition-colors font-medium">AgendaFácil</Link>
+          </p>
+        )}
       </div>
     </div>
   );
