@@ -25,6 +25,9 @@ type OrgProfile = {
   instagram: string | null;
   require_confirmation: boolean;
   buffer_minutes: number;
+  min_notice_hours: number;
+  booking_window_days: number;
+  max_per_day: number | null;
 };
 
 /** Edição do perfil público da empresa: logo, capa, descrição, contato e horários. */
@@ -55,7 +58,7 @@ export default function CompanyProfilePage() {
       const [{ data: orgData }, { data: allMembers }] = await Promise.all([
         supabase
           .from('organizations')
-          .select('id, name, slug, logo_url, cover_url, description, whatsapp, address, opening_hours, instagram, require_confirmation, buffer_minutes')
+          .select('id, name, slug, logo_url, cover_url, description, whatsapp, address, opening_hours, instagram, require_confirmation, buffer_minutes, min_notice_hours, booking_window_days, max_per_day')
           .eq('id', member.organization_id)
           .single(),
         supabase.from('members').select('id, name, slug').eq('organization_id', member.organization_id),
@@ -109,6 +112,9 @@ export default function CompanyProfilePage() {
         instagram: org.instagram?.trim().replace(/^@/, '') || null,
         require_confirmation: org.require_confirmation,
         buffer_minutes: org.buffer_minutes,
+        min_notice_hours: org.min_notice_hours,
+        booking_window_days: org.booking_window_days,
+        max_per_day: org.max_per_day,
       })
       .eq('id', org.id);
     setSaving(false);
@@ -237,6 +243,37 @@ export default function CompanyProfilePage() {
                 className="w-20 px-3 py-2 border border-gray-200 rounded-xl text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
               />
               <span className="text-sm text-gray-400">min</span>
+            </div>
+          </div>
+
+          {/* Regras de agendamento */}
+          <div className="border-t border-gray-50 pt-5">
+            <p className="text-sm font-medium text-gray-700 mb-1">Regras de agendamento</p>
+            <p className="text-xs text-gray-400 mb-4">Controle quando os clientes podem agendar no seu link público.</p>
+            <div className="grid sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Antecedência mínima</label>
+                <div className="flex items-center gap-2">
+                  <input type="number" min={0} max={168} value={org.min_notice_hours} onChange={(e) => setOrg({ ...org, min_notice_hours: Math.max(0, Number(e.target.value) || 0) })} className="w-20 px-3 py-2 border border-gray-200 rounded-xl text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <span className="text-xs text-gray-400">horas</span>
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">Não aceita agendar com menos de X horas.</p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Janela de agendamento</label>
+                <div className="flex items-center gap-2">
+                  <input type="number" min={1} max={365} value={org.booking_window_days} onChange={(e) => setOrg({ ...org, booking_window_days: Math.max(1, Number(e.target.value) || 1) })} className="w-20 px-3 py-2 border border-gray-200 rounded-xl text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <span className="text-xs text-gray-400">dias</span>
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">Máximo de dias à frente que podem agendar.</p>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Limite por dia</label>
+                <div className="flex items-center gap-2">
+                  <input type="number" min={0} placeholder="sem limite" value={org.max_per_day ?? ''} onChange={(e) => setOrg({ ...org, max_per_day: e.target.value === '' ? null : Math.max(0, Number(e.target.value) || 0) })} className="w-24 px-3 py-2 border border-gray-200 rounded-xl text-sm text-center focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+                </div>
+                <p className="text-[11px] text-gray-400 mt-1">Máx. de agendamentos por profissional/dia.</p>
+              </div>
             </div>
           </div>
 
