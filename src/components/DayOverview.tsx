@@ -19,6 +19,7 @@ type Booking = {
   status: string;
   paid: boolean;
   payment_method: string | null;
+  custom_answers: Record<string, string> | null;
   services: { name: string; price: number } | null;
 };
 
@@ -55,7 +56,7 @@ export default function DayOverview({ memberId }: Props) {
       const [{ data: bookingData }, { data: availabilityData }, { data: monthData }] = await Promise.all([
         supabase
           .from('bookings')
-          .select('id, start_time, end_time, client_name, client_phone, status, paid, payment_method, services(name, price)')
+          .select('id, start_time, end_time, client_name, client_phone, status, paid, payment_method, custom_answers, services(name, price)')
           .eq('member_id', memberId)
           .neq('status', 'cancelled')
           .gte('start_time', startOfDay(now).toISOString())
@@ -319,6 +320,9 @@ export default function DayOverview({ memberId }: Props) {
                           {b.services.price > 0 && <span> · R$ {Number(b.services.price).toFixed(2)}</span>}
                         </p>
                       )}
+                      {b.custom_answers && Object.entries(b.custom_answers).map(([k, v]) => (
+                        <p key={k} className="text-[11px] text-gray-400 mt-0.5"><span className="font-medium">{k}:</span> {v}</p>
+                      ))}
                       {/* Conclusão / pagamento */}
                       <div className="mt-2 flex items-center gap-1.5 flex-wrap">
                         {b.paid ? (
