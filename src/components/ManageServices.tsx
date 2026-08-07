@@ -19,6 +19,8 @@ type Service = {
   unit_label?: string | null;
   is_product?: boolean;
   stock?: number | null;
+  is_online?: boolean;
+  online_url?: string | null;
 };
 
 const CATEGORY_SUGGESTIONS = [
@@ -90,6 +92,8 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
   const [newUnit, setNewUnit] = useState('');
   const [newStock, setNewStock] = useState('');
   const [newLowStock, setNewLowStock] = useState('5');
+  const [newOnline, setNewOnline] = useState(false);
+  const [newOnlineUrl, setNewOnlineUrl] = useState('');
 
   // Inline edit state
   const [editing, setEditing] = useState<EditingState | null>(null);
@@ -159,6 +163,8 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
           unit_label: newType === 'session' ? (newUnit.trim() || 'sessão') : (newType === 'product' ? (newUnit.trim() || 'unidade') : null),
           stock: newType === 'product' && newStock !== '' ? parseInt(newStock) : null,
           low_stock_threshold: newType === 'product' && newLowStock !== '' ? parseInt(newLowStock) : 5,
+          is_online: newType !== 'product' && newOnline,
+          online_url: newType !== 'product' && newOnline ? (newOnlineUrl.trim() || null) : null,
         })
         .select()
         .single();
@@ -170,7 +176,7 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
         queryClient.invalidateQueries(['services', organizationId]);
         setNewName(''); setNewDescription(''); setNewCategory(''); setNewNotes('');
         setNewMaterials(''); setNewCommission(''); setNewDuration(30); setNewPrice(0);
-        setNewType('service'); setNewUnit(''); setNewStock(''); setNewLowStock('5');
+        setNewType('service'); setNewUnit(''); setNewStock(''); setNewLowStock('5'); setNewOnline(false); setNewOnlineUrl('');
         setShowCreate(false);
         toast.success(newType === 'product' ? 'Produto criado!' : 'Serviço criado!');
       },
@@ -495,6 +501,17 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
               <label className="block text-xs font-medium text-gray-600 mb-1">Preço (R$) *</label>
               <input type="number" min={0} step="0.01" placeholder="50.00" value={newPrice} onChange={(e) => setNewPrice(parseFloat(e.target.value) || 0)} className={inputCls} />
             </div>
+            {newType !== 'product' && (
+              <div className="sm:col-span-2">
+                <label className="flex items-center gap-2 mb-1 cursor-pointer">
+                  <input type="checkbox" checked={newOnline} onChange={(e) => setNewOnline(e.target.checked)} className="rounded" />
+                  <span className="text-xs font-medium text-gray-600">Atendimento online (vídeo)</span>
+                </label>
+                {newOnline && (
+                  <input type="url" placeholder="Link da chamada (Meet, Zoom…)" value={newOnlineUrl} onChange={(e) => setNewOnlineUrl(e.target.value)} className={inputCls} />
+                )}
+              </div>
+            )}
           </div>
           <div className="flex gap-2 justify-end">
             <button onClick={() => setShowCreate(false)} className="px-4 py-2 text-sm text-gray-600 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-all">
@@ -569,6 +586,9 @@ export default function ManageServices({ memberId, organizationId, canEditPrice 
                         )}
                         {service.is_product && (
                           <span className="text-xs bg-amber-500 text-white px-2 py-0.5 rounded-full font-medium">Produto</span>
+                        )}
+                        {service.is_online && (
+                          <span className="text-xs bg-sky-500 text-white px-2 py-0.5 rounded-full font-medium">Online</span>
                         )}
                         {service.category && !service.is_combo && (
                           <span className="text-xs bg-violet-100 text-violet-600 px-2 py-0.5 rounded-full font-medium">

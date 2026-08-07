@@ -22,6 +22,9 @@ type BookingInfo = {
   organization_name: string | null;
   organization_slug: string | null;
   already_reviewed: boolean;
+  is_online: boolean;
+  online_url: string | null;
+  organization_address: string | null;
 };
 
 type Availability = { day_of_week: number; start_time: string; end_time: string };
@@ -203,6 +206,16 @@ export default function ManageBookingPage() {
             <p className="flex justify-between"><span className="text-gray-400">Profissional</span><strong className="text-gray-800">{booking.member_name}</strong></p>
             <p className="flex justify-between"><span className="text-gray-400">Data</span><strong className="text-gray-800 capitalize">{format(new Date(booking.start_time), "EEE, dd 'de' MMMM", { locale: ptBR })}</strong></p>
             <p className="flex justify-between"><span className="text-gray-400">Horário</span><strong className="text-gray-800">{format(new Date(booking.start_time), 'HH:mm')} – {format(new Date(booking.end_time), 'HH:mm')}</strong></p>
+            <div className="flex justify-between gap-3">
+              <span className="text-gray-400">Local</span>
+              {booking.is_online ? (
+                booking.online_url
+                  ? <a href={booking.online_url} target="_blank" rel="noopener noreferrer" className="text-sky-600 hover:text-sky-800 font-semibold text-right break-all underline">Online — abrir link 💻</a>
+                  : <strong className="text-sky-600 text-right">Online 💻</strong>
+              ) : (
+                <strong className="text-gray-800 text-right">{booking.organization_address || 'Presencial'}</strong>
+              )}
+            </div>
           </div>
         </div>
 
